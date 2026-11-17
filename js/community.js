@@ -1,0 +1,64 @@
+import { db } from './firebase-config.js';
+import { currentUser, currentUserData } from './auth.js';
+import { collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const demoReviews = [
+    { nome: "Camila S.", bias: "Jungkook", nota: 5, comentario: "Os photocards holográficos chegaram impecáveis! O brilho é surreal, super recomendo a Army Mania." },
+    { nome: "Lucas M.", bias: "Suga", nota: 5, comentario: "Comprei a Box Surpresa e veio tudo muito bem embalado com cheirinho ótimo. Atendimento nota 10!" },
+    { nome: "Beatriz R.", bias: "Jimin", nota: 5, comentario: "Melhor loja de brindes BTS! Já fiz 3 pedidos e sempre chega antes do prazo." }
+];
+
+onSnapshot(collection(db, "depoimentos"), (snap) => {
+    const reviews = snap.empty ? demoReviews : snap.docs.map(d => d.data());
+    const grid = document.getElementById('reviewsGrid');
+    grid.innerHTML = reviews.map(r => `
+        <div class="bg-armyBlack border border-white/10 p-6 rounded-2xl space-y-3">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h4 class="font-bold text-sm">${r.nome}</h4>
+                    <span class="text-[11px] text-armyRed font-semibold">Bias: ${r.bias || 'OT7'}</span>
+                </div>
+                <span class="text-xs">${'⭐'.repeat(r.nota || 5)}</span>
+            </div>
+            <p class="text-gray-300 text-sm leading-relaxed">"${r.comentario}"</p>
+        </div>
+    `).join('');
+});
+
+window.openReviewModal = () => {
+    if (!currentUser) {
+        openAuthModal();
+        return alert("Entre na sua conta para deixar seu feedback!");
+    }
+    const modal = document.getElementById('reviewModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+window.closeReviewModal = () => {
+    const modal = document.getElementById('reviewModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+};
+
+window.submitReview = async (e) => {
+    e.preventDefault();
+    const nota = Number(document.getElementById('reviewRating').value);
+    const comentario = document.getElementById('reviewText').value;
+
+    try {
+        await addDoc(collection(db, "depoimentos"), {
+            clienteId: currentUser.uid,
+            nome: currentUserData?.nome || currentUser.email,
+            bias: currentUserData?.bias || "OT7",
+            nota,
+            comentario,
+            criadoEm: serverTimestamp()
+        });
+        document.getElementById('reviewText').value = '';
+        closeReviewModal();
+        alert("Obrigado pelo seu feedback, ARMY!");
+    } catch (err) {
+        alert("Erro ao enviar: " + err.message);
+    }
+};
