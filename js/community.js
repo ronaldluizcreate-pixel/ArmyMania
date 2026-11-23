@@ -3,7 +3,7 @@ import { currentUser, currentUserData } from './auth.js';
 import { collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const demoReviews = [
-    { nome: "Camila S.", bias: "Jungkook", nota: 5, comentario: "Os photocards holográficos chegaram impecáveis! O brilho é surreal, super recomendo a Army Mania." },
+    { nome: "Camila S.", bias: "Jungkook", nota: 5, comentario: "Os photocards holográficos chegaram impecáveis! O brilho é surreal, super recomendo a ArmieMania." },
     { nome: "Lucas M.", bias: "Suga", nota: 5, comentario: "Comprei a Box Surpresa e veio tudo muito bem embalado com cheirinho ótimo. Atendimento nota 10!" },
     { nome: "Beatriz R.", bias: "Jimin", nota: 5, comentario: "Melhor loja de brindes BTS! Já fiz 3 pedidos e sempre chega antes do prazo." }
 ];
@@ -57,7 +57,7 @@ window.submitReview = async (e) => {
         });
         document.getElementById('reviewText').value = '';
         closeReviewModal();
-        alert("Obrigado pelo seu feedback, ARMY!");
+        alert("Obrigado pelo seu feedback!");
     } catch (err) {
         alert("Erro ao enviar: " + err.message);
     }
