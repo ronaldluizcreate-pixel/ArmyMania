@@ -386,101 +386,147 @@
         </div>
     </div>
 
-    <!-- 6. MODAL DE CHECKOUT (CPF, CEP E ENDEREÇO DE ENTREGA) -->
+    <!-- 6. MODAL DE CHECKOUT (FRETE SUPERFRETE + PIX ASAAS EM TEMPO REAL) -->
     <div id="checkoutModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div onclick="closeCheckoutModal()" class="absolute inset-0 bg-black/85 backdrop-blur-sm"></div>
         <div class="relative bg-armyCard border border-white/15 rounded-2xl max-w-xl w-full p-6 sm:p-8 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
             <button onclick="closeCheckoutModal()" class="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
             
-            <div class="mb-5">
-                <span class="text-armyRed font-bold text-xs uppercase tracking-widest">Entrega & Pagamento</span>
-                <h3 class="font-display font-black text-2xl mt-1">Finalizar Pedido</h3>
-                <p class="text-xs text-gray-400 mt-1">Preencha seu CPF e endereço para emissão da etiqueta de envio e cobrança.</p>
+            <!-- ETAPA 1: DADOS DE ENTREGA E ESCOLHA DO FRETE -->
+            <div id="checkoutStepForm">
+                <div class="mb-5">
+                    <span class="text-armyRed font-bold text-xs uppercase tracking-widest">Entrega & Pagamento</span>
+                    <h3 class="font-display font-black text-2xl mt-1">Finalizar Pedido</h3>
+                    <p class="text-xs text-gray-400 mt-1">Informe seu CPF e CEP para calcular o frete e gerar o Pix.</p>
+                </div>
+
+                <form onsubmit="confirmCheckoutOrder(event)" class="space-y-4">
+                    <div class="grid sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">CPF do Destinatário</label>
+                            <input type="text" id="chkCpf" maxlength="14" oninput="maskCpf(this)" required placeholder="000.000.000-00" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">WhatsApp de Contato</label>
+                            <input type="tel" id="chkWhatsapp" required placeholder="(84) 99999-9999" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- CEP com Busca Automática + Cotação SuperFrete -->
+                    <div class="grid grid-cols-3 gap-3 items-end">
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-400 mb-1">CEP de Entrega</label>
+                            <input type="text" id="chkCep" maxlength="9" onblur="fetchAddressAndShipping()" required placeholder="00000-000" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                        <button type="button" onclick="fetchAddressAndShipping()" class="py-2.5 px-3 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition">
+                            Calcular Frete
+                        </button>
+                    </div>
+
+                    <!-- Opções de Frete (SuperFrete) -->
+                    <div id="shippingOptionsContainer" class="hidden space-y-2 bg-black/40 border border-white/10 rounded-xl p-3">
+                        <span class="block text-[11px] font-bold uppercase tracking-wider text-gray-400">Escolha o Envio (SuperFrete)</span>
+                        <div id="shippingOptionsList" class="space-y-2"></div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-400 mb-1">Rua / Avenida</label>
+                            <input type="text" id="chkStreet" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Número</label>
+                            <input type="text" id="chkNumber" required placeholder="123" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Complemento (Opcional)</label>
+                            <input type="text" id="chkComplement" placeholder="Apto, Bloco..." class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Bairro</label>
+                            <input type="text" id="chkNeighborhood" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="col-span-2">
+                            <label class="block text-xs text-gray-400 mb-1">Cidade</label>
+                            <input type="text" id="chkCity" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Estado (UF)</label>
+                            <input type="text" id="chkState" maxlength="2" required placeholder="RN" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm uppercase focus:border-armyRed focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Resumo de Valores -->
+                    <div class="bg-black/50 border border-white/10 rounded-xl p-4 space-y-2 text-sm">
+                        <div class="flex justify-between text-gray-400">
+                            <span>Produtos</span>
+                            <span id="chkProductsTotal">R$ 0,00</span>
+                        </div>
+                        <div class="flex justify-between text-gray-400">
+                            <span>Frete</span>
+                            <span id="chkShippingInfo" class="text-xs text-armyRed font-semibold">Informe o CEP acima</span>
+                        </div>
+                        <div class="flex justify-between font-display font-black text-lg pt-2 border-t border-white/10">
+                            <span>Total a Pagar</span>
+                            <span id="chkFinalTotal" class="text-armyRed">R$ 0,00</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btnSubmitCheckout" class="w-full py-3.5 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg shadow-[0_0_20px_rgba(230,0,35,0.4)] transition">
+                        Gerar Pix e Finalizar Pedido
+                    </button>
+                </form>
             </div>
 
-            <form onsubmit="confirmCheckoutOrder(event)" class="space-y-4">
-                <div class="grid sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">CPF do Destinatário</label>
-                        <input type="text" id="chkCpf" maxlength="14" oninput="maskCpf(this)" required placeholder="000.000.000-00" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">WhatsApp de Contato</label>
-                        <input type="tel" id="chkWhatsapp" required placeholder="(84) 99999-9999" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+            <!-- ETAPA 2: QR CODE PIX ASAAS + CONFIRMAÇÃO EM TEMPO REAL -->
+            <div id="checkoutStepPix" class="hidden text-center space-y-5 py-2">
+                <div>
+                    <span class="px-3 py-1 bg-armyRed/20 text-armyRed text-xs font-bold uppercase rounded-full">Pagamento Instantâneo</span>
+                    <h3 class="font-display font-black text-2xl mt-2">Pague com Pix</h3>
+                    <p class="text-xs text-gray-400 mt-1">Assim que o pagamento for confirmado, sua etiqueta e código de rastreio são gerados automaticamente!</p>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl inline-block mx-auto shadow-lg">
+                    <img id="pixQrCodeImg" src="" alt="QR Code Pix" class="w-52 h-52 object-contain">
+                </div>
+
+                <div class="space-y-2 text-left">
+                    <label class="block text-xs text-gray-400">Pix Copia e Cola:</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="pixCopyPasteInput" readonly class="flex-1 bg-black/60 border border-white/15 rounded-lg px-3 py-2.5 text-xs font-mono text-gray-300 focus:outline-none">
+                        <button type="button" onclick="copyPixCode()" class="px-4 py-2.5 bg-armyRed hover:bg-armyRedHover text-white text-xs font-bold rounded-lg transition shrink-0">
+                            Copiar
+                        </button>
                     </div>
                 </div>
 
-                <!-- CEP com Busca Automática -->
-                <div class="grid grid-cols-3 gap-3 items-end">
-                    <div class="col-span-2">
-                        <label class="block text-xs text-gray-400 mb-1">CEP de Entrega</label>
-                        <input type="text" id="chkCep" maxlength="9" onblur="fetchAddressByCep()" required placeholder="00000-000" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
-                    </div>
-                    <button type="button" onclick="fetchAddressByCep()" class="py-2.5 px-3 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition">
-                        Buscar CEP
+                <div id="pixLiveStatusBox" class="p-3 bg-white/5 border border-white/10 rounded-xl text-xs text-gray-300 flex items-center justify-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                    <span>Aguardando confirmação automática do pagamento...</span>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <a id="pixInvoiceLink" href="#" target="_blank" class="flex-1 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition">
+                        Abrir Fatura Completa
+                    </a>
+                    <button type="button" onclick="closeCheckoutModal()" class="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-semibold transition">
+                        Fechar
                     </button>
                 </div>
-
-                <div class="grid grid-cols-3 gap-3">
-                    <div class="col-span-2">
-                        <label class="block text-xs text-gray-400 mb-1">Rua / Avenida</label>
-                        <input type="text" id="chkStreet" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Número</label>
-                        <input type="text" id="chkNumber" required placeholder="123" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Complemento (Opcional)</label>
-                        <input type="text" id="chkComplement" placeholder="Apto, Bloco..." class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Bairro</label>
-                        <input type="text" id="chkNeighborhood" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-3 gap-3">
-                    <div class="col-span-2">
-                        <label class="block text-xs text-gray-400 mb-1">Cidade</label>
-                        <input type="text" id="chkCity" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Estado (UF)</label>
-                        <input type="text" id="chkState" maxlength="2" required placeholder="RN" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm uppercase focus:border-armyRed focus:outline-none">
-                    </div>
-                </div>
-
-                <!-- Resumo de Valores -->
-                <div class="bg-black/50 border border-white/10 rounded-xl p-4 space-y-2 text-sm">
-                    <div class="flex justify-between text-gray-400">
-                        <span>Produtos</span>
-                        <span id="chkProductsTotal">R$ 0,00</span>
-                    </div>
-                    <div class="flex justify-between text-gray-400">
-                        <span>Frete (SuperFrete)</span>
-                        <span id="chkShippingInfo" class="text-xs text-armyRed font-semibold">Calculado na próxima etapa</span>
-                    </div>
-                    <div class="flex justify-between font-display font-black text-lg pt-2 border-t border-white/10">
-                        <span>Total</span>
-                        <span id="chkFinalTotal" class="text-armyRed">R$ 0,00</span>
-                    </div>
-                </div>
-
-                <button type="submit" class="w-full py-3.5 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg shadow-[0_0_20px_rgba(230,0,35,0.4)] transition">
-                    Confirmar Dados e Gerar Pedido
-                </button>
-            </form>
+            </div>
         </div>
     </div>
-    
+
     <!-- Scripts Modulares -->
     <script type="module" src="js/firebase-config.js"></script>
     <script type="module" src="js/auth.js"></script>
-    <script type="module" src="js/store.js?v=2"></script>
+    <script type="module" src="js/store.js?v=3"></script>
     <script type="module" src="js/community.js"></script>
     <script>
         lucide.createIcons();
