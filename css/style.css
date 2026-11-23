@@ -1,384 +1,80 @@
-!DOCTYPE html
-html lang=pt-BR class=dark
-head
-    meta charset=UTF-8
-    meta name=viewport content=width=device-width, initial-scale=1.0
-    titleARMY MANIA  Loja Oficial de Brindes BTStitle
-    !-- Tailwind CSS --
-    script src=httpscdn.tailwindcss.comscript
-    !-- Google Fonts --
-    link href=httpsfonts.googleapis.comcss2family=Montserratwght@400;600;700;900&family=Interwght@300;400;500;600&display=swap rel=stylesheet
-    !-- Lucide Icons --
-    script src=httpsunpkg.comlucide@latestscript
-    !-- Custom CSS --
-    link rel=stylesheet href=cssstyle.css
-    script
-        tailwind.config = {
-            darkMode 'class',
-            theme {
-                extend {
-                    colors {
-                        armyBlack '#09090B',
-                        armyCard '#121216',
-                        armyRed '#E60023',
-                        armyRedHover '#FF1A3C',
-                    },
-                    fontFamily {
-                        display ['Montserrat', 'sans-serif'],
-                        sans ['Inter', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    script
-head
-body class=bg-armyBlack text-white font-sans antialiased selectionbg-armyRed selectiontext-white
+/* Scrollbar Personalizada */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #09090B;
+}
+::-webkit-scrollbar-thumb {
+    background: #27272A;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #E60023;
+}
 
-    !-- NAVBAR FIXA --
-    header class=fixed top-0 w-full z-40 bg-armyBlack85 backdrop-blur-md border-b border-white10
-        div class=max-w-7xl mx-auto px-4 smpx-6 lgpx-8 h-20 flex items-center justify-between gap-4
-            !-- Logo --
-            a href=# class=flex items-center gap-2 group
-                div class=w-10 h-10 bg-armyRed rounded-lg flex items-center justify-center font-display font-black text-xl tracking-tighter shadow-[0_0_15px_rgba(230,0,35,0.6)] group-hoverscale-105 transition
-                    AM
-                div
-                div
-                    span class=font-display font-black text-xl tracking-wider text-whiteARMY span class=text-armyRedMANIAspanspan
-                    span class=block text-[10px] uppercase tracking-[0.25em] text-gray-400 -mt-1BTS Merch & Giftsspan
-                div
-            a
+/* Efeito Glow estilo Photocard */
+.photocard-glow {
+    position: relative;
+    transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.photocard-glow:hover {
+    border-color: rgba(230, 0, 35, 0.7);
+    box-shadow: 0 10px 30px -10px rgba(230, 0, 35, 0.45);
+    transform: translateY(-6px);
+}
 
-            !-- Barra de Busca Desktop --
-            div class=hidden mdflex flex-1 max-w-md relative
-                input type=text id=searchInput placeholder=Buscar photocards, kits, Jungkook, Proof... 
-                    class=w-full bg-white5 border border-white10 rounded-full py-2.5 pl-11 pr-4 text-sm text-white placeholder-gray-400 focusoutline-none focusborder-armyRed focusring-1 focusring-armyRed transition
-                i data-lucide=search class=w-4 h-4 text-gray-400 absolute left-4 top-3i
-            div
+/* Animação suave de entrada */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+    animation: fadeIn 0.7s ease-out forwards;
+}
 
-            !-- Ações do Usuário --
-            div class=flex items-center gap-3 smgap-5
-                a href=#catalogo class=hidden lgblock text-sm font-medium text-gray-300 hovertext-armyRed transitionCatálogoa
-                a href=#area-fa class=hidden lgblock text-sm font-medium text-gray-300 hovertext-armyRed transitionÁrea ARMYa
+/* Animação de Pulso e Brilho no Ícone/Contador do Carrinho */
+@keyframes cartBounceGlow {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 15px rgba(230, 0, 35, 0.4);
+    }
+    35% {
+        transform: scale(1.28);
+        box-shadow: 0 0 32px rgba(230, 0, 35, 1), 0 0 12px rgba(255, 255, 255, 0.8);
+    }
+    70% {
+        transform: scale(0.95);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 15px rgba(230, 0, 35, 0.4);
+    }
+}
 
-                !-- Botão Meus Pedidos (Visível apenas logado) --
-                button id=btnMyOrders onclick=openOrdersModal() class=hidden items-center gap-1.5 text-sm font-medium text-gray-300 hovertext-white transition
-                    i data-lucide=package class=w-4 h-4 text-armyRedi
-                    span class=hidden sminlineMeus Pedidosspan
-                button
+.cart-pulse-glow {
+    animation: cartBounceGlow 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
-                !-- Botão Login  Perfil --
-                button id=btnAuth onclick=openAuthModal() class=flex items-center gap-2 bg-white5 hoverbg-white10 border border-white15 px-4 py-2 rounded-full text-sm font-medium transition
-                    i data-lucide=user class=w-4 h-4 text-armyRedi
-                    span id=authBtnTextEntrarspan
-                button
+/* Clone da imagem voando para o carrinho */
+.flying-cart-item {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    border-radius: 12px;
+    object-fit: cover;
+    border: 2px solid #E60023;
+    box-shadow: 0 0 25px rgba(230, 0, 35, 0.85);
+    transition: all 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
-                !-- Botão Carrinho --
-                button onclick=toggleCart() class=relative p-2.5 bg-armyRed hoverbg-armyRedHover rounded-full transition shadow-[0_0_15px_rgba(230,0,35,0.4)]
-                    i data-lucide=shopping-bag class=w-5 h-5 text-whitei
-                    span id=cartCount class=absolute -top-1 -right-1 bg-white text-armyBlack text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center0span
-                button
-            div
-        div
-    header
+/* Transições do Baralho de Cartas no Hero */
+.deck-card {
+    transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.4s ease, box-shadow 0.4s ease;
+    will-change: transform, opacity;
+}
 
-    !-- HERO BANNER --
-    section class=relative pt-32 pb-20 lgpt-40 lgpb-28 overflow-hidden border-b border-white10
-        !-- Efeito de Luz Vermelha de Fundo --
-        div class=absolute top-20 left-12 -translate-x-12 w-[600px] h-[350px] bg-armyRed20 blur-[130px] rounded-full pointer-events-nonediv
-        
-        div class=max-w-7xl mx-auto px-4 smpx-6 lgpx-8 relative z-10 grid lggrid-cols-2 gap-12 items-center
-            div class=space-y-6 animate-fade-in
-                div class=inline-flex items-center gap-2 px-3 py-1 rounded-full bg-armyRed15 border border-armyRed40 text-armyRed text-xs font-bold uppercase tracking-widest
-                    span class=w-2 h-2 rounded-full bg-armyRed animate-pingspan
-                    Coleção Exclusiva • Edição Limitada
-                div
-                h1 class=font-display font-black text-4xl smtext-6xl leading-tight tracking-tight
-                    A PAIXÃO PELO span class=text-transparent bg-clip-text bg-gradient-to-r from-armyRed to-whiteBTSspan EM CADA DETALHE.
-                h1
-                p class=text-gray-400 text-lg max-w-xl leading-relaxed
-                    Brindes colecionáveis, kits personalizados, photocards holográficos e itens exclusivos feitos de ARMY para ARMY. Preços únicos e envio seguro.
-                p
-                div class=flex flex-wrap gap-4 pt-2
-                    a href=#catalogo class=px-8 py-4 bg-armyRed hoverbg-armyRedHover text-white font-display font-bold uppercase tracking-wider text-sm rounded-lg shadow-[0_0_25px_rgba(230,0,35,0.5)] hovershadow-[0_0_35px_rgba(230,0,35,0.8)] transition flex items-center gap-2
-                        Explorar Catálogo
-                        i data-lucide=arrow-right class=w-4 h-4i
-                    a
-                    a href=#area-fa class=px-8 py-4 bg-white5 hoverbg-white10 border border-white15 text-white font-display font-bold uppercase tracking-wider text-sm rounded-lg transition
-                        Mural dos Fãs
-                    a
-                div
-            div
-
-            !-- Card Destaque Interativo (Estilo Photocard) --
-            div class=relative flex justify-center
-                div class=photocard-glow w-80 smw-96 bg-armyCard border border-white15 rounded-2xl p-5 shadow-2xl transform rotate-2 hoverrotate-0 transition duration-500
-                    div class=relative rounded-xl overflow-hidden aspect-[45] bg-black
-                        img src=httpsimages.unsplash.comphoto-1614613535308-eb5fbd3d2c17auto=format&fit=crop&w=800&q=80 alt=Kit Especial BTS class=w-full h-full object-cover opacity-90 hoverscale-105 transition duration-700
-                        span class=absolute top-3 left-3 bg-armyRed text-white text-xs font-black px-3 py-1 rounded uppercase tracking-widerMais Vendidospan
-                    div
-                    div class=mt-4 flex justify-between items-center
-                        div
-                            h3 class=font-display font-bold text-lgKit Colecionador Proof Erah3
-                            p class=text-xs text-gray-4007 Photocards + Chaveiro Acrílico + Bottonsp
-                        div
-                        div class=text-right
-                            span class=text-xs text-gray-500 line-through blockR$ 69,90span
-                            span class=text-xl font-display font-black text-armyRedR$ 49,90span
-                        div
-                    div
-                div
-            div
-        div
-    section
-
-    !-- CATÁLOGO DE PRODUTOS --
-    section id=catalogo class=py-20 max-w-7xl mx-auto px-4 smpx-6 lgpx-8
-        div class=flex flex-col mdflex-row mditems-end justify-between gap-6 mb-12
-            div
-                span class=text-armyRed font-bold text-xs uppercase tracking-[0.2em]Vitrine Oficialspan
-                h2 class=font-display font-black text-3xl smtext-4xl mt-1BRINDES & COLECIONÁVEISh2
-            div
-
-            !-- Filtros por Categoria --
-            div class=flex flex-wrap gap-2 id=categoryFilters
-                button data-cat=todos class=filter-btn active px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-armyRed text-white transitionTodosbutton
-                button data-cat=kits class=filter-btn px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white5 text-gray-300 hoverbg-white10 transitionKits Especiaisbutton
-                button data-cat=photocards class=filter-btn px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white5 text-gray-300 hoverbg-white10 transitionPhotocardsbutton
-                button data-cat=acessorios class=filter-btn px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white5 text-gray-300 hoverbg-white10 transitionAcessóriosbutton
-                button data-cat=promocao class=filter-btn px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white5 text-gray-300 hoverbg-white10 transition🔥 Promoçõesbutton
-            div
-        div
-
-        !-- Grid de Produtos (Populado via JS) --
-        div id=productsGrid class=grid grid-cols-1 smgrid-cols-2 lggrid-cols-4 gap-6
-            !-- Cards injetados dinamicamente --
-        div
-    section
-
-    !-- ÁREA DE FÃ & DEPOIMENTOS --
-    section id=area-fa class=py-20 bg-armyCard60 border-t border-white10
-        div class=max-w-7xl mx-auto px-4 smpx-6 lgpx-8
-            div class=flex flex-col mdflex-row justify-between items-start mditems-end gap-6 mb-12
-                div
-                    span class=text-armyRed font-bold text-xs uppercase tracking-[0.2em]Comunidade & Feedbackspan
-                    h2 class=font-display font-black text-3xl smtext-4xl mt-1ÁREA DO FÃ • MURAL ARMYh2
-                    p class=text-gray-400 text-sm mt-2Veja o que outros fãs estão dizendo sobre nossos brindes e deixe seu recado para o seu Bias!p
-                div
-                button onclick=openReviewModal() class=px-6 py-3 bg-white text-armyBlack hoverbg-gray-200 font-display font-bold text-xs uppercase tracking-wider rounded-lg transition flex items-center gap-2
-                    i data-lucide=message-square-plus class=w-4 h-4 text-armyRedi
-                    Deixar Depoimento  Feedback
-                button
-            div
-
-            !-- Grid de Depoimentos --
-            div id=reviewsGrid class=grid grid-cols-1 mdgrid-cols-3 gap-6
-                !-- Populado via JS --
-            div
-        div
-    section
-
-    !-- FOOTER --
-    footer class=border-t border-white10 py-12 bg-black text-center text-gray-500 text-sm
-        div class=max-w-7xl mx-auto px-4
-            p class=font-display font-bold text-white tracking-wider text-base mb-2ARMY span class=text-armyRedMANIAspanp
-            pFeito com dedicação para a comunidade ARMY. Todos os direitos reservados © 2026.p
-        div
-    footer
-
-    !-- ==================== MODAIS E DRAWERS ==================== --
-
-    !-- 1. DRAWER DO CARRINHO --
-    div id=cartDrawer class=fixed inset-0 z-50 hidden
-        div onclick=toggleCart() class=absolute inset-0 bg-black75 backdrop-blur-smdiv
-        div class=absolute right-0 top-0 h-full w-full max-w-md bg-armyCard border-l border-white10 flex flex-col justify-between p-6 shadow-2xl
-            div class=flex items-center justify-between border-b border-white10 pb-4
-                h3 class=font-display font-bold text-xl flex items-center gap-2
-                    i data-lucide=shopping-bag class=w-5 h-5 text-armyRedi Seu Carrinho
-                h3
-                button onclick=toggleCart() class=p-1.5 hoverbg-white10 rounded-lgi data-lucide=x class=w-5 h-5ibutton
-            div
-
-            div id=cartItemsContainer class=flex-1 overflow-y-auto py-4 space-y-4
-                !-- Itens do carrinho --
-            div
-
-            div class=border-t border-white10 pt-4 space-y-4
-                div class=flex justify-between text-sm text-gray-400
-                    spanSubtotalspan
-                    span id=cartSubtotalR$ 0,00span
-                div
-                div class=flex justify-between font-display font-black text-xl
-                    spanTotalspan
-                    span id=cartTotal class=text-armyRedR$ 0,00span
-                div
-                button onclick=checkoutOrder() class=w-full py-4 bg-armyRed hoverbg-armyRedHover text-white font-display font-bold uppercase tracking-wider text-sm rounded-lg shadow-[0_0_20px_rgba(230,0,35,0.4)] transition
-                    Finalizar Pedido
-                button
-            div
-        div
-    div
-
-    !-- 2. MODAL DE DETALHES DO PRODUTO --
-    div id=productModal class=fixed inset-0 z-50 hidden items-center justify-center p-4
-        div onclick=closeProductModal() class=absolute inset-0 bg-black80 backdrop-blur-smdiv
-        div id=productModalContent class=relative bg-armyCard border border-white15 rounded-2xl max-w-2xl w-full p-6 smp-8 z-10 shadow-2xl
-            !-- Conteúdo dinâmico --
-        div
-    div
-
-    !-- 3. MODAL DE LOGIN  CADASTRO COMPLETO --
-    div id=authModal class=fixed inset-0 z-50 hidden items-center justify-center p-4
-        div onclick=closeAuthModal() class=absolute inset-0 bg-black80 backdrop-blur-smdiv
-        div class=relative bg-armyCard border border-white15 rounded-2xl max-w-md w-full p-6 smp-8 z-10 shadow-2xl max-h-[90vh] overflow-y-auto
-            button onclick=closeAuthModal() class=absolute top-4 right-4 p-1.5 hoverbg-white10 rounded-lgi data-lucide=x class=w-5 h-5ibutton
-            
-            div class=text-center mb-6
-                span class=text-armyRed font-bold text-xs uppercase tracking-widestConta ARMY Maniaspan
-                h3 id=authModalTitle class=font-display font-black text-2xl mt-1Entrar na sua Contah3
-            div
-
-            !-- Botão Google --
-            button onclick=loginWithGoogle() class=w-full py-3 px-4 bg-white text-black hoverbg-gray-200 font-semibold text-sm rounded-lg flex items-center justify-center gap-3 transition mb-5
-                img src=httpswww.gstatic.comfirebasejsui2.0.0imagesauthgoogle.svg class=w-5 h-5 alt=Google
-                Continuar com Google
-            button
-
-            div class=relative flex py-2 items-center mb-5
-                div class=flex-grow border-t border-white10div
-                span class=flex-shrink mx-4 text-xs text-gray-500 uppercaseou com e-mailspan
-                div class=flex-grow border-t border-white10div
-            div
-
-            !-- Formulário Login --
-            form id=loginForm onsubmit=handleEmailLogin(event) class=space-y-4
-                div
-                    label class=block text-xs text-gray-400 mb-1E-maillabel
-                    input type=email id=loginEmail required class=w-full bg-black50 border border-white15 rounded-lg p-3 text-sm focusborder-armyRed focusoutline-none
-                div
-                div
-                    label class=block text-xs text-gray-400 mb-1Senhalabel
-                    input type=password id=loginPassword required class=w-full bg-black50 border border-white15 rounded-lg p-3 text-sm focusborder-armyRed focusoutline-none
-                div
-                button type=submit class=w-full py-3.5 bg-armyRed hoverbg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg transitionEntrarbutton
-                p class=text-center text-xs text-gray-400 pt-2
-                    Ainda não tem conta button type=button onclick=toggleAuthMode('register') class=text-armyRed font-bold hoverunderlineCadastre-se aquibutton
-                p
-            form
-
-            !-- Formulário Cadastro Completo --
-            form id=registerForm onsubmit=handleEmailRegister(event) class=space-y-3 hidden
-                div
-                    label class=block text-xs text-gray-400 mb-1Nome Completolabel
-                    input type=text id=regName required class=w-full bg-black50 border border-white15 rounded-lg p-2.5 text-sm focusborder-armyRed focusoutline-none
-                div
-                div
-                    label class=block text-xs text-gray-400 mb-1E-maillabel
-                    input type=email id=regEmail required class=w-full bg-black50 border border-white15 rounded-lg p-2.5 text-sm focusborder-armyRed focusoutline-none
-                div
-                div class=grid grid-cols-2 gap-3
-                    div
-                        label class=block text-xs text-gray-400 mb-1Idadelabel
-                        input type=number id=regAge min=10 max=100 required class=w-full bg-black50 border border-white15 rounded-lg p-2.5 text-sm focusborder-armyRed focusoutline-none
-                    div
-                    div
-                        label class=block text-xs text-gray-400 mb-1Gênerolabel
-                        select id=regGender required class=w-full bg-black50 border border-white15 rounded-lg p-2.5 text-sm focusborder-armyRed focusoutline-none
-                            option value=FemininoFemininooption
-                            option value=MasculinoMasculinooption
-                            option value=Não-binárioNão-bináriooption
-                            option value=Prefiro não informarPrefiro não dizeroption
-                        select
-                    div
-                div
-                div class=grid grid-cols-2 gap-3
-                    div
-                        label class=block text-xs text-gray-400 mb-1WhatsApplabel
-                        input type=tel id=regPhone placeholder=(84) 99999-9999 required class=w-full bg-black50 border border-white15 rounded-lg p-2.5 text-sm focusborder-armyRed focusoutline-none
-                    div
-                    div
-                        label class=block text-xs text-gray-400 mb-1Seu Bias (Opcional)label
-                        select id=regBias class=w-full bg-black50 border border-white15 rounded-lg p-2.5 text-sm focusborder-armyRed focusoutline-none
-                            option value=OT7OT7 (Todos)option
-                            option value=RMRMoption
-                            option value=JinJinoption
-                            option value=SugaSugaoption
-                            option value=J-HopeJ-Hopeoption
-                            option value=JiminJiminoption
-                            option value=VVoption
-                            option value=JungkookJungkookoption
-                        select
-                    div
-                div
-                div
-                    label class=block text-xs text-gray-400 mb-1Senha (mín. 6 caracteres)label
-                    input type=password id=regPassword minlength=6 required class=w-full bg-black50 border border-white15 rounded-lg p-2.5 text-sm focusborder-armyRed focusoutline-none
-                div
-                button type=submit class=w-full py-3.5 bg-armyRed hoverbg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg transition mt-2Criar Conta ARMYbutton
-                p class=text-center text-xs text-gray-400 pt-2
-                    Já possui cadastro button type=button onclick=toggleAuthMode('login') class=text-armyRed font-bold hoverunderlineFazer Loginbutton
-                p
-            form
-
-            !-- Área Logada (Perfil Rápido) --
-            div id=loggedProfileView class=hidden text-center space-y-4
-                div class=w-16 h-16 bg-armyRed20 border border-armyRed rounded-full flex items-center justify-center mx-auto font-display font-black text-2xl text-armyRed id=profileInitialAdiv
-                div
-                    h4 id=profileNameDisplay class=font-bold text-lgh4
-                    p id=profileEmailDisplay class=text-xs text-gray-400p
-                    span id=profileBiasDisplay class=inline-block mt-2 px-3 py-1 bg-white5 rounded-full text-xs text-armyRed font-semiboldspan
-                div
-                button onclick=logoutUser() class=w-full py-3 bg-white10 hoverbg-red-95060 border border-white10 text-sm font-semibold rounded-lg transitionSair da Contabutton
-            div
-        div
-    div
-
-    !-- 4. MODAL DE DEPOIMENTO  FEEDBACK --
-    div id=reviewModal class=fixed inset-0 z-50 hidden items-center justify-center p-4
-        div onclick=closeReviewModal() class=absolute inset-0 bg-black80 backdrop-blur-smdiv
-        div class=relative bg-armyCard border border-white15 rounded-2xl max-w-md w-full p-6 z-10
-            h3 class=font-display font-bold text-xl mb-4Enviar Feedback  Recado ARMYh3
-            form onsubmit=submitReview(event) class=space-y-4
-                div
-                    label class=block text-xs text-gray-400 mb-1Avaliaçãolabel
-                    select id=reviewRating class=w-full bg-black50 border border-white15 rounded-lg p-2.5 text-sm
-                        option value=5⭐⭐⭐⭐⭐ (55 - Perfeito!)option
-                        option value=4⭐⭐⭐⭐ (45 - Muito bom)option
-                        option value=3⭐⭐⭐ (35 - Bom)option
-                    select
-                div
-                div
-                    label class=block text-xs text-gray-400 mb-1Seu Comentário ou Recadolabel
-                    textarea id=reviewText rows=3 required placeholder=Conte o que achou dos brindes ou deixe uma mensagem... class=w-full bg-black50 border border-white15 rounded-lg p-3 text-sm focusborder-armyRed focusoutline-nonetextarea
-                div
-                div class=flex gap-3
-                    button type=button onclick=closeReviewModal() class=flex-1 py-3 bg-white5 rounded-lg text-smCancelarbutton
-                    button type=submit class=flex-1 py-3 bg-armyRed hoverbg-armyRedHover rounded-lg text-sm font-boldPublicarbutton
-                div
-            form
-        div
-    div
-
-    !-- 5. MODAL MEUS PEDIDOS --
-    div id=ordersModal class=fixed inset-0 z-50 hidden items-center justify-center p-4
-        div onclick=closeOrdersModal() class=absolute inset-0 bg-black80 backdrop-blur-smdiv
-        div class=relative bg-armyCard border border-white15 rounded-2xl max-w-2xl w-full p-6 z-10 max-h-[85vh] overflow-y-auto
-            div class=flex justify-between items-center border-b border-white10 pb-4 mb-4
-                h3 class=font-display font-bold text-xlMeus Pedidos & Rastreioh3
-                button onclick=closeOrdersModal() class=p-1.5 hoverbg-white10 rounded-lgi data-lucide=x class=w-5 h-5ibutton
-            div
-            div id=userOrdersList class=space-y-4
-                !-- Populado via JS --
-            div
-        div
-    div
-
-    !-- Scripts Modulares --
-    script type=module src=jsfirebase-config.jsscript
-    script type=module src=jsauth.jsscript
-    script type=module src=jsstore.jsscript
-    script type=module src=jscommunity.jsscript
-    script
-        lucide.createIcons();
-    script
-body
-html
+/* Suavizar rolagem */
+html {
+    scroll-behavior: smooth;
+}
