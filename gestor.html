@@ -1,462 +1,330 @@
-import { auth, googleProvider, db } from './firebase-config.js';
-import { 
-    signInWithPopup, 
-    signInWithEmailAndPassword, 
-    onAuthStateChanged, 
-    signOut 
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { 
-    collection, 
-    onSnapshot, 
-    addDoc, 
-    updateDoc, 
-    deleteDoc, 
-    doc, 
-    serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-// LISTA DE E-MAILS AUTORIZADOS COMO GESTORES
-const ADMIN_EMAILS = [
-    "seu-email@gmail.com"
-];
-
-let ordersData = [];
-let productsData = [];
-let reviewsData = [];
-let usersData = [];
-
-// ==================== AUTENTICAÇÃO DO GESTOR ====================
-
-window.adminLoginGoogle = async () => {
-    try {
-        await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-        showAuthError("Erro ao autenticar com Google: " + error.message);
-    }
-};
-
-window.adminLoginEmail = async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('adminEmail').value;
-    const password = document.getElementById('adminPassword').value;
-    try {
-        await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-        showAuthError("E-mail ou senha inválidos.");
-    }
-};
-
-window.adminLogout = async () => {
-    await signOut(auth);
-};
-
-function showAuthError(msg) {
-    const el = document.getElementById('adminAuthError');
-    el.innerText = msg;
-    el.classList.remove('hidden');
-}
-
-onAuthStateChanged(auth, (user) => {
-    const loginScreen = document.getElementById('adminLoginScreen');
-    const dashboard = document.getElementById('adminDashboard');
-
-    if (user) {
-        if (ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-            loginScreen.classList.add('hidden');
-            dashboard.classList.remove('hidden');
-            document.getElementById('loggedAdminEmail').innerText = user.email;
-            initRealtimeListeners();
-        } else {
-            signOut(auth);
-            showAuthError(`Acesso negado: o e-mail ${user.email} não tem permissão de gestor.`);
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArmieMania | Painel do Gestor</title>
+    <link rel="icon" type="image/png" href="icon.png">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        armyBlack: '#09090B',
+                        armyCard: '#121216',
+                        armyRed: '#E60023',
+                        armyRedHover: '#FF1A3C',
+                    },
+                    fontFamily: {
+                        display: ['Montserrat', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
         }
-    } else {
-        dashboard.classList.add('hidden');
-        loginScreen.classList.remove('hidden');
-    }
-});
+    </script>
+</head>
+<body class="bg-armyBlack text-white font-sans antialiased selection:bg-armyRed selection:text-white min-h-screen">
 
-// ==================== ESCUTA EM TEMPO REAL (FIRESTORE) ====================
-
-let listenersStarted = false;
-
-function initRealtimeListeners() {
-    if (listenersStarted) return;
-    listenersStarted = true;
-
-    onSnapshot(collection(db, "pedidos"), (snap) => {
-        ordersData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        ordersData.sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
-        updateKPIs();
-        renderAdminOrders();
-    });
-
-    onSnapshot(collection(db, "produtos"), (snap) => {
-        productsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        updateKPIs();
-        renderAdminProducts();
-    });
-
-    onSnapshot(collection(db, "depoimentos"), (snap) => {
-        reviewsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderAdminReviews();
-    });
-
-    onSnapshot(collection(db, "usuarios"), (snap) => {
-        usersData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        updateKPIs();
-        renderAdminUsers();
-    });
-}
-
-function updateKPIs() {
-    const validOrders = ordersData.filter(o => o.status !== "Cancelado");
-    const revenue = validOrders.reduce((acc, o) => acc + Number(o.total || 0), 0);
-    const pending = ordersData.filter(o => o.status !== "Entregue" && o.status !== "Cancelado").length;
-
-    document.getElementById('kpiRevenue').innerText = `R$ ${revenue.toFixed(2)}`;
-    document.getElementById('kpiPendingOrders').innerText = pending;
-    document.getElementById('kpiProducts').innerText = productsData.length;
-    document.getElementById('kpiCustomers').innerText = usersData.length;
-}
-
-// ==================== NAVEGAÇÃO ENTRE ABAS ====================
-
-window.switchAdminTab = (tabName) => {
-    document.querySelectorAll('.admin-tab-content').forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('.admin-tab-btn').forEach(btn => {
-        btn.classList.remove('bg-armyRed', 'text-white');
-        btn.classList.add('bg-white/5', 'text-gray-300');
-    });
-
-    document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-    const activeBtn = document.getElementById(`tab-btn-${tabName}`);
-    activeBtn.classList.remove('bg-white/5', 'text-gray-300');
-    activeBtn.classList.add('bg-armyRed', 'text-white');
-};
-
-// ==================== GESTÃO DE PEDIDOS & ENTREGAS ====================
-
-window.renderAdminOrders = () => {
-    const container = document.getElementById('adminOrdersList');
-    const filter = document.getElementById('orderStatusFilter').value;
-
-    const filtered = filter === 'todos' 
-        ? ordersData 
-        : ordersData.filter(o => o.status === filter);
-
-    if (filtered.length === 0) {
-        container.innerHTML = `<p class="col-span-full text-center text-gray-500 py-10 bg-armyCard rounded-2xl border border-white/10">Nenhum pedido encontrado neste filtro.</p>`;
-        return;
-    }
-
-    const statuses = [
-        "Aguardando Pagamento",
-        "Pago / Em Preparação",
-        "Enviado",
-        "Entregue",
-        "Cancelado"
-    ];
-
-    container.innerHTML = filtered.map(order => {
-        const cleanPhone = (order.clienteWhatsapp || '').replace(/\D/g, '');
-        const waMessage = encodeURIComponent(`Olá ${order.clienteNome}! Aqui é da ArmieMania sobre o seu pedido #${order.id.slice(0, 6).toUpperCase()} (${order.status}).`);
-        const waLink = cleanPhone ? `https://wa.me/55${cleanPhone}?text=${waMessage}` : null;
-
-        const end = order.endereco || {};
-        const addressText = end.cep 
-            ? `${end.rua}, ${end.numero}${end.complemento ? ' - ' + end.complemento : ''} • ${end.bairro}, ${end.cidade}/${end.estado} (CEP: ${end.cep})`
-            : 'Endereço não informado';
-
-        return `
-            <div class="bg-armyCard border border-white/10 rounded-2xl p-5 flex flex-col justify-between gap-4">
-                <div class="space-y-3">
-                    <div class="flex items-start justify-between gap-2">
-                        <div>
-                            <span class="text-xs font-mono text-armyRed font-bold">#${order.id.slice(0, 6).toUpperCase()}</span>
-                            <h4 class="font-bold text-base">${order.clienteNome}</h4>
-                            <p class="text-xs text-gray-400">${order.clienteEmail} ${order.clienteCpf ? `• CPF: ${order.clienteCpf}` : ''}</p>
-                        </div>
-                        <div class="text-right">
-                            <span class="font-display font-black text-xl text-white block">R$ ${Number(order.total).toFixed(2)}</span>
-                            ${order.freteValor ? `<span class="text-[11px] text-gray-400">Frete (${order.freteServico || 'Envio'}): R$ ${Number(order.freteValor).toFixed(2)}</span>` : ''}
-                        </div>
-                    </div>
-
-                    <!-- Endereço de Entrega -->
-                    <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-gray-300 flex items-start gap-2">
-                        <i data-lucide="map-pin" class="w-4 h-4 text-armyRed shrink-0 mt-0.5"></i>
-                        <span>${addressText}</span>
-                    </div>
-
-                    <!-- Itens do Pedido -->
-                    <div class="bg-black/40 border border-white/5 rounded-xl p-3 space-y-1.5">
-                        ${(order.itens || []).map(item => `
-                            <div class="flex justify-between text-xs">
-                                <span class="text-gray-300"><strong class="text-white">${item.qtd}x</strong> ${item.nome}</span>
-                                <span class="text-gray-400">R$ ${(item.qtd * item.preco).toFixed(2)}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <!-- Código de Rastreio + Link Etiqueta SuperFrete -->
-                    <div class="flex gap-2">
-                        <input type="text" id="track-${order.id}" value="${order.codigoRastreio || ''}" placeholder="Código de rastreio" class="flex-1 bg-black/50 border border-white/15 rounded-lg px-3 py-2 text-xs focus:border-armyRed focus:outline-none">
-                        <button onclick="saveTrackingCode('${order.id}')" class="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold transition">Salvar</button>
-                        ${order.etiquetaUrl ? `<a href="${order.etiquetaUrl}" target="_blank" class="px-3 py-2 bg-armyRed hover:bg-armyRedHover rounded-lg text-xs font-bold flex items-center gap-1 transition"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Etiqueta</a>` : ''}
-                    </div>
-                </div>
-
-                <!-- Controles de Etapa da Venda -->
-                <div class="pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
-                    <select onchange="updateOrderStatus('${order.id}', this.value)" class="bg-black border border-armyRed/50 text-white rounded-lg px-3 py-2 text-xs font-bold focus:outline-none">
-                        ${statuses.map(st => `<option value="${st}" ${order.status === st ? 'selected' : ''}>${st}</option>`).join('')}
-                    </select>
-
-                    ${waLink ? `
-                        <a href="${waLink}" target="_blank" class="px-3.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-400 rounded-lg text-xs font-bold flex items-center gap-1.5 transition">
-                            <i data-lucide="message-circle" class="w-4 h-4"></i> WhatsApp
-                        </a>
-                    ` : `<span class="text-[11px] text-gray-500">Sem WhatsApp</span>`}
-                </div>
+    <!-- ==================== TELA DE LOGIN DO GESTOR ==================== -->
+    <div id="adminLoginScreen" class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-armyRed/20 blur-[120px] rounded-full pointer-events-none"></div>
+        
+        <div class="relative z-10 bg-armyCard border border-white/15 rounded-2xl max-w-md w-full p-8 shadow-2xl space-y-6">
+            <div class="flex flex-col items-center text-center">
+                <img src="icon.png" alt="ArmieMania" class="w-14 h-14 rounded-xl object-cover shadow-[0_0_20px_rgba(230,0,35,0.6)] mb-3">
+                <span class="text-armyRed font-bold text-xs uppercase tracking-[0.25em]">Área Administrativa</span>
+                <h1 class="font-display font-black text-2xl mt-1">Armie<span class="text-armyRed">Mania</span> Gestor</h1>
+                <p class="text-xs text-gray-400 mt-1">Acesso restrito para gerenciamento de brindes, preços e pedidos.</p>
             </div>
-        `;
-    }).join('');
 
-    if (window.lucide) lucide.createIcons();
-};
+            <div id="adminAuthError" class="hidden bg-red-950/70 border border-armyRed text-red-200 text-xs p-3 rounded-lg text-center"></div>
 
-window.updateOrderStatus = async (orderId, newStatus) => {
-    try {
-        await updateDoc(doc(db, "pedidos", orderId), { status: newStatus });
-    } catch (error) {
-        alert("Erro ao atualizar status: " + error.message);
-    }
-};
-
-window.saveTrackingCode = async (orderId) => {
-    const code = document.getElementById(`track-${orderId}`).value.trim();
-    try {
-        await updateDoc(doc(db, "pedidos", orderId), { codigoRastreio: code });
-        alert("Código de rastreio salvo!");
-    } catch (error) {
-        alert("Erro ao salvar rastreio: " + error.message);
-    }
-};
-
-// ==================== GESTÃO DE PRODUTOS & MEDIDAS ====================
-
-function renderAdminProducts() {
-    const grid = document.getElementById('adminProductsGrid');
-    if (productsData.length === 0) {
-        grid.innerHTML = `<p class="col-span-full text-center text-gray-500 py-10 bg-armyCard rounded-2xl border border-white/10">Nenhum brinde cadastrado no banco ainda. Clique em "+ Novo Brinde" para começar!</p>`;
-        return;
-    }
-
-    grid.innerHTML = productsData.map(prod => `
-        <div class="bg-armyCard border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between">
-            <div>
-                <div class="relative aspect-video bg-black">
-                    <img src="${prod.imagem}" alt="${prod.nome}" class="w-full h-full object-cover">
-                    ${prod.promocao ? `<span class="absolute top-3 left-3 bg-armyRed text-white text-[10px] font-black uppercase px-2.5 py-1 rounded">Promoção Ativa</span>` : ''}
-                    <span class="absolute top-3 right-3 bg-black/80 text-white text-[11px] font-bold px-2.5 py-1 rounded">Estoque: ${prod.estoque}</span>
-                </div>
-                <div class="p-5">
-                    <div class="flex items-center justify-between text-[10px] uppercase tracking-widest text-gray-400">
-                        <span>${prod.categoria}</span>
-                        <span>${prod.peso || 0.15}kg • ${prod.largura || 12}x${prod.altura || 3}x${prod.comprimento || 16}cm</span>
-                    </div>
-                    <h4 class="font-display font-bold text-base mt-1">${prod.nome}</h4>
-                    <p class="text-xs text-gray-400 mt-1 line-clamp-2">${prod.descricao}</p>
-                </div>
-            </div>
-            <div class="px-5 pb-5 pt-3 border-t border-white/10 flex items-center justify-between">
-                <div>
-                    ${prod.promocao ? `<span class="text-xs text-gray-500 line-through block">R$ ${Number(prod.precoOriginal).toFixed(2)}</span>` : ''}
-                    <span class="font-display font-black text-lg text-armyRed">R$ ${Number(prod.precoPromocional).toFixed(2)}</span>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="openProductFormModal('${prod.id}')" title="Editar" class="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition">
-                        <i data-lucide="edit-3" class="w-4 h-4"></i>
-                    </button>
-                    <button onclick="deleteProduct('${prod.id}')" title="Excluir" class="p-2 bg-red-950/60 hover:bg-armyRed rounded-lg transition">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `).join('');
-
-    if (window.lucide) lucide.createIcons();
-}
-
-window.openProductFormModal = (prodId = null) => {
-    const modal = document.getElementById('productFormModal');
-    const title = document.getElementById('productFormTitle');
-    const preview = document.getElementById('prodImagePreview');
-
-    if (prodId) {
-        const prod = productsData.find(p => p.id === prodId);
-        if (!prod) return;
-        title.innerText = "Editar Brinde";
-        document.getElementById('editProdId').value = prod.id;
-        document.getElementById('prodName').value = prod.nome;
-        document.getElementById('prodCategory').value = prod.categoria;
-        document.getElementById('prodStock').value = prod.estoque;
-        document.getElementById('prodImage').value = prod.imagem;
-        document.getElementById('prodDesc').value = prod.descricao;
-        document.getElementById('prodWeight').value = prod.peso || 0.15;
-        document.getElementById('prodWidth').value = prod.largura || 12;
-        document.getElementById('prodHeight').value = prod.altura || 3;
-        document.getElementById('prodLength').value = prod.comprimento || 16;
-        document.getElementById('prodPromoToggle').checked = Boolean(prod.promocao);
-        document.getElementById('prodOriginalPrice').value = prod.precoOriginal;
-        document.getElementById('prodPromoPrice').value = prod.promocao ? prod.precoPromocional : '';
-        preview.src = prod.imagem;
-        preview.classList.remove('hidden');
-    } else {
-        title.innerText = "Cadastrar Novo Brinde";
-        document.getElementById('editProdId').value = "";
-        document.getElementById('prodName').value = "";
-        document.getElementById('prodCategory').value = "kits";
-        document.getElementById('prodStock').value = 10;
-        document.getElementById('prodImage').value = "";
-        document.getElementById('prodDesc').value = "";
-        document.getElementById('prodWeight').value = 0.15;
-        document.getElementById('prodWidth').value = 12;
-        document.getElementById('prodHeight').value = 3;
-        document.getElementById('prodLength').value = 16;
-        document.getElementById('prodPromoToggle').checked = false;
-        document.getElementById('prodOriginalPrice').value = "";
-        document.getElementById('prodPromoPrice').value = "";
-        preview.classList.add('hidden');
-    }
-
-    togglePromoFields();
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-};
-
-window.closeProductFormModal = () => {
-    const modal = document.getElementById('productFormModal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-};
-
-window.togglePromoFields = () => {
-    const isPromo = document.getElementById('prodPromoToggle').checked;
-    const promoBox = document.getElementById('promoPriceBox');
-    const lblNormal = document.getElementById('lblNormalPrice');
-    const promoInput = document.getElementById('prodPromoPrice');
-
-    if (isPromo) {
-        promoBox.classList.remove('hidden');
-        lblNormal.innerText = "Preço Original (Riscado)";
-        promoInput.required = true;
-    } else {
-        promoBox.classList.add('hidden');
-        lblNormal.innerText = "Preço de Venda (R$)";
-        promoInput.required = false;
-    }
-};
-
-window.previewProductImage = () => {
-    const url = document.getElementById('prodImage').value;
-    const preview = document.getElementById('prodImagePreview');
-    if (url) {
-        preview.src = url;
-        preview.classList.remove('hidden');
-    } else {
-        preview.classList.add('hidden');
-    }
-};
-
-window.saveProduct = async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('editProdId').value;
-    const isPromo = document.getElementById('prodPromoToggle').checked;
-    const precoOriginal = Number(document.getElementById('prodOriginalPrice').value);
-    const precoPromocional = isPromo ? Number(document.getElementById('prodPromoPrice').value) : precoOriginal;
-
-    const payload = {
-        nome: document.getElementById('prodName').value,
-        categoria: document.getElementById('prodCategory').value,
-        estoque: Number(document.getElementById('prodStock').value),
-        imagem: document.getElementById('prodImage').value,
-        descricao: document.getElementById('prodDesc').value,
-        peso: Number(document.getElementById('prodWeight').value),
-        largura: Number(document.getElementById('prodWidth').value),
-        altura: Number(document.getElementById('prodHeight').value),
-        comprimento: Number(document.getElementById('prodLength').value),
-        promocao: isPromo,
-        precoOriginal,
-        precoPromocional,
-        atualizadoEm: serverTimestamp()
-    };
-
-    try {
-        if (id) {
-            await updateDoc(doc(db, "produtos", id), payload);
-        } else {
-            payload.criadoEm = serverTimestamp();
-            await addDoc(collection(db, "produtos"), payload);
-        }
-        closeProductFormModal();
-    } catch (error) {
-        alert("Erro ao salvar produto: " + error.message);
-    }
-};
-
-window.deleteProduct = async (id) => {
-    if (!confirm("Tem certeza que deseja excluir este brinde do catálogo?")) return;
-    try {
-        await deleteDoc(doc(db, "produtos", id));
-    } catch (error) {
-        alert("Erro ao excluir: " + error.message);
-    }
-};
-
-// ==================== MODERAÇÃO DE MURAL & CLIENTES ====================
-
-function renderAdminReviews() {
-    const list = document.getElementById('adminReviewsList');
-    if (reviewsData.length === 0) {
-        list.innerHTML = `<p class="text-xs text-gray-500">Nenhum depoimento registrado.</p>`;
-        return;
-    }
-    list.innerHTML = reviewsData.map(r => `
-        <div class="bg-armyCard border border-white/10 rounded-xl p-4 flex justify-between items-start gap-3">
-            <div>
-                <span class="font-bold text-sm">${r.nome}</span>
-                <span class="text-[11px] text-armyRed ml-2">Bias: ${r.bias || 'OT7'}</span>
-                <p class="text-xs text-gray-300 mt-1">"${r.comentario}"</p>
-            </div>
-            <button onclick="deleteReview('${r.id}')" title="Remover depoimento" class="text-gray-500 hover:text-armyRed p-1">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            <button onclick="adminLoginGoogle()" class="w-full py-3 px-4 bg-white text-black hover:bg-gray-200 font-semibold text-sm rounded-lg flex items-center justify-center gap-3 transition">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5" alt="Google">
+                Entrar com Google
             </button>
-        </div>
-    `).join('');
-    if (window.lucide) lucide.createIcons();
-}
 
-window.deleteReview = async (id) => {
-    if (!confirm("Remover este depoimento do mural?")) return;
-    await deleteDoc(doc(db, "depoimentos", id));
-};
-
-function renderAdminUsers() {
-    const list = document.getElementById('adminUsersList');
-    if (usersData.length === 0) {
-        list.innerHTML = `<p class="text-xs text-gray-500">Nenhum fã cadastrado ainda.</p>`;
-        return;
-    }
-    list.innerHTML = usersData.map(u => `
-        <div class="bg-armyCard border border-white/10 rounded-xl p-4 flex justify-between items-center">
-            <div>
-                <h4 class="font-bold text-sm">${u.nome}</h4>
-                <p class="text-xs text-gray-400">${u.email} ${u.whatsapp ? `• ${u.whatsapp}` : ''}</p>
+            <div class="relative flex py-1 items-center">
+                <div class="flex-grow border-t border-white/10"></div>
+                <span class="flex-shrink mx-4 text-xs text-gray-500 uppercase">ou credenciais</span>
+                <div class="flex-grow border-t border-white/10"></div>
             </div>
-            <span class="px-2.5 py-1 bg-armyRed/15 text-armyRed text-xs font-bold rounded-full">${u.bias || 'OT7'}</span>
+
+            <form onsubmit="adminLoginEmail(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">E-mail do Gestor</label>
+                    <input type="email" id="adminEmail" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Senha</label>
+                    <input type="password" id="adminPassword" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <button type="submit" class="w-full py-3.5 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg shadow-[0_0_20px_rgba(230,0,35,0.4)] transition">
+                    Acessar Painel
+                </button>
+            </form>
+
+            <div class="text-center pt-2">
+                <a href="index.html" class="text-xs text-gray-400 hover:text-white transition inline-flex items-center gap-1">
+                    <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Voltar para a loja do cliente
+                </a>
+            </div>
         </div>
-    `).join('');
-}
+    </div>
+
+    <!-- ==================== DASHBOARD PRINCIPAL DO GESTOR ==================== -->
+    <div id="adminDashboard" class="hidden min-h-screen flex flex-col">
+        
+        <!-- Topbar -->
+        <header class="sticky top-0 z-40 bg-armyBlack/90 backdrop-blur-md border-b border-white/10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <img src="icon.png" alt="ArmieMania" class="w-10 h-10 rounded-lg object-cover shadow-[0_0_15px_rgba(230,0,35,0.5)]">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-display font-black text-xl tracking-wider">Armie<span class="text-armyRed">Mania</span></span>
+                            <span class="px-2 py-0.5 bg-armyRed/20 border border-armyRed/40 text-armyRed text-[10px] font-black uppercase rounded">Gestor</span>
+                        </div>
+                        <span id="loggedAdminEmail" class="block text-[11px] text-gray-400"></span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <a href="index.html" target="_blank" class="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/15 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+                        <i data-lucide="external-link" class="w-4 h-4 text-armyRed"></i>
+                        <span class="hidden sm:inline">Ver Loja Online</span>
+                    </a>
+                    <button onclick="adminLogout()" class="px-4 py-2 bg-red-950/50 hover:bg-armyRed border border-armyRed/40 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Sair</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Conteúdo Principal -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+            
+            <!-- Cards de Indicadores (KPIs) -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-armyCard border border-white/10 rounded-2xl p-5">
+                    <div class="flex items-center justify-between text-gray-400 text-xs font-medium">
+                        <span>Faturamento Total</span>
+                        <i data-lucide="dollar-sign" class="w-4 h-4 text-armyRed"></i>
+                    </div>
+                    <p id="kpiRevenue" class="font-display font-black text-2xl sm:text-3xl mt-2 text-white">R$ 0,00</p>
+                </div>
+
+                <div class="bg-armyCard border border-white/10 rounded-2xl p-5">
+                    <div class="flex items-center justify-between text-gray-400 text-xs font-medium">
+                        <span>Pedidos em Aberto</span>
+                        <i data-lucide="clock" class="w-4 h-4 text-armyRed"></i>
+                    </div>
+                    <p id="kpiPendingOrders" class="font-display font-black text-2xl sm:text-3xl mt-2 text-armyRed">0</p>
+                </div>
+
+                <div class="bg-armyCard border border-white/10 rounded-2xl p-5">
+                    <div class="flex items-center justify-between text-gray-400 text-xs font-medium">
+                        <span>Brindes no Catálogo</span>
+                        <i data-lucide="package" class="w-4 h-4 text-armyRed"></i>
+                    </div>
+                    <p id="kpiProducts" class="font-display font-black text-2xl sm:text-3xl mt-2 text-white">0</p>
+                </div>
+
+                <div class="bg-armyCard border border-white/10 rounded-2xl p-5">
+                    <div class="flex items-center justify-between text-gray-400 text-xs font-medium">
+                        <span>Fãs Cadastrados</span>
+                        <i data-lucide="users" class="w-4 h-4 text-armyRed"></i>
+                    </div>
+                    <p id="kpiCustomers" class="font-display font-black text-2xl sm:text-3xl mt-2 text-white">0</p>
+                </div>
+            </div>
+
+            <!-- Navegação por Abas -->
+            <div class="flex flex-wrap gap-2 border-b border-white/10 pb-4">
+                <button onclick="switchAdminTab('pedidos')" id="tab-btn-pedidos" class="admin-tab-btn px-5 py-2.5 rounded-lg text-xs font-display font-bold uppercase tracking-wider bg-armyRed text-white flex items-center gap-2 transition">
+                    <i data-lucide="shopping-bag" class="w-4 h-4"></i> Pedidos & Entregas
+                </button>
+                <button onclick="switchAdminTab('produtos')" id="tab-btn-produtos" class="admin-tab-btn px-5 py-2.5 rounded-lg text-xs font-display font-bold uppercase tracking-wider bg-white/5 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition">
+                    <i data-lucide="tag" class="w-4 h-4"></i> Catálogo, Preços & Medidas
+                </button>
+                <button onclick="switchAdminTab('comunidade')" id="tab-btn-comunidade" class="admin-tab-btn px-5 py-2.5 rounded-lg text-xs font-display font-bold uppercase tracking-wider bg-white/5 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition">
+                    <i data-lucide="message-square" class="w-4 h-4"></i> Mural & Clientes
+                </button>
+            </div>
+
+            <!-- ==================== ABA 1: PEDIDOS & ENTREGAS ==================== -->
+            <section id="tab-pedidos" class="admin-tab-content space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="font-display font-black text-xl">Gerenciamento de Pedidos</h2>
+                        <p class="text-xs text-gray-400">Visualize endereço de entrega, CPF, rastreio e status de pagamento.</p>
+                    </div>
+                    <select id="orderStatusFilter" onchange="renderAdminOrders()" class="bg-armyCard border border-white/15 rounded-lg px-4 py-2.5 text-xs font-semibold focus:border-armyRed focus:outline-none">
+                        <option value="todos">Todos os Status</option>
+                        <option value="Aguardando Pagamento">Aguardando Pagamento</option>
+                        <option value="Pago / Em Preparação">Pago / Em Preparação</option>
+                        <option value="Enviado">Enviado</option>
+                        <option value="Entregue">Entregue</option>
+                        <option value="Cancelado">Cancelado</option>
+                    </select>
+                </div>
+
+                <div id="adminOrdersList" class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <!-- Pedidos injetados via gestor.js -->
+                </div>
+            </section>
+
+            <!-- ==================== ABA 2: CATÁLOGO & PRECIFICAÇÃO ==================== -->
+            <section id="tab-produtos" class="admin-tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="font-display font-black text-xl">Produtos, Estoque, Preços & Dimensões</h2>
+                        <p class="text-xs text-gray-400">Informe peso e medidas para cálculo automático de frete no SuperFrete.</p>
+                    </div>
+                    <button onclick="openProductFormModal()" class="px-5 py-3 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg shadow-[0_0_20px_rgba(230,0,35,0.4)] flex items-center gap-2 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Novo Brinde
+                    </button>
+                </div>
+
+                <div id="adminProductsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Produtos injetados via gestor.js -->
+                </div>
+            </section>
+
+            <!-- ==================== ABA 3: MURAL & CLIENTES ==================== -->
+            <section id="tab-comunidade" class="admin-tab-content hidden grid lg:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <h3 class="font-display font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="star" class="w-5 h-5 text-armyRed"></i> Depoimentos no Mural
+                    </h3>
+                    <div id="adminReviewsList" class="space-y-3"></div>
+                </div>
+
+                <div class="space-y-4">
+                    <h3 class="font-display font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="users" class="w-5 h-5 text-armyRed"></i> Clientes Cadastrados
+                    </h3>
+                    <div id="adminUsersList" class="space-y-3"></div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ==================== MODAL CADASTRAR / EDITAR PRODUTO ==================== -->
+    <div id="productFormModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div onclick="closeProductFormModal()" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+        <div class="relative bg-armyCard border border-white/15 rounded-2xl max-w-xl w-full p-6 sm:p-8 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <button onclick="closeProductFormModal()" class="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+            
+            <h3 id="productFormTitle" class="font-display font-black text-xl mb-5">Cadastrar Novo Brinde</h3>
+            
+            <form onsubmit="saveProduct(event)" class="space-y-4">
+                <input type="hidden" id="editProdId">
+                
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Nome do Brinde</label>
+                    <input type="text" id="prodName" required placeholder="Ex: Kit Photocards Proof Era" class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Categoria</label>
+                        <select id="prodCategory" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                            <option value="kits">Kits Especiais</option>
+                            <option value="photocards">Photocards</option>
+                            <option value="acessorios">Acessórios</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Estoque (Unidades)</label>
+                        <input type="number" id="prodStock" min="0" value="10" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">URL da Imagem do Produto</label>
+                    <input type="url" id="prodImage" oninput="previewProductImage()" required placeholder="https://..." class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                    <img id="prodImagePreview" src="" alt="Prévia" class="hidden mt-2 w-24 h-24 object-cover rounded-lg border border-white/15">
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Descrição Detalhada</label>
+                    <textarea id="prodDesc" rows="2" required placeholder="Detalhes, tamanho, material, itens inclusos..." class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none"></textarea>
+                </div>
+
+                <!-- Dimensões e Peso (Obrigatório SuperFrete) -->
+                <div class="p-4 bg-black/40 border border-white/10 rounded-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
+                            <i data-lucide="box" class="w-3.5 h-3.5 text-armyRed"></i> Peso & Dimensões (SuperFrete)
+                        </span>
+                        <span class="text-[10px] text-gray-500">Embalado</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-1">Peso (kg)</label>
+                            <input type="number" step="0.01" min="0.05" id="prodWeight" value="0.15" required class="w-full bg-black/60 border border-white/15 rounded-lg p-2 text-xs focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-1">Largura (cm)</label>
+                            <input type="number" min="11" id="prodWidth" value="12" required class="w-full bg-black/60 border border-white/15 rounded-lg p-2 text-xs focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-1">Altura (cm)</label>
+                            <input type="number" min="2" id="prodHeight" value="3" required class="w-full bg-black/60 border border-white/15 rounded-lg p-2 text-xs focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-1">Compr. (cm)</label>
+                            <input type="number" min="16" id="prodLength" value="16" required class="w-full bg-black/60 border border-white/15 rounded-lg p-2 text-xs focus:border-armyRed focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Precificação e Promoção -->
+                <div class="p-4 bg-black/40 border border-white/10 rounded-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold uppercase tracking-wider text-armyRed flex items-center gap-2">
+                            <input type="checkbox" id="prodPromoToggle" onchange="togglePromoFields()" class="accent-armyRed w-4 h-4">
+                            Ativar Preço Promocional
+                        </label>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label id="lblNormalPrice" class="block text-xs text-gray-400 mb-1">Preço de Venda (R$)</label>
+                            <input type="number" step="0.01" min="0" id="prodOriginalPrice" required placeholder="49.90" class="w-full bg-black/60 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div id="promoPriceBox" class="hidden">
+                            <label class="block text-xs text-armyRed font-semibold mb-1">Preço Único Promo (R$)</label>
+                            <input type="number" step="0.01" min="0" id="prodPromoPrice" placeholder="39.90" class="w-full bg-black/60 border border-armyRed/50 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeProductFormModal()" class="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-semibold">Cancelar</button>
+                    <button type="submit" class="flex-1 py-3 bg-armyRed hover:bg-armyRedHover rounded-lg text-sm font-display font-bold uppercase tracking-wider">Salvar Produto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/gestor.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
