@@ -12,7 +12,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // URL DO SEU PROJETO NA VERCEL (Sem barra no final)
-const VERCEL_API_URL = "https://SEU-PROJETO.vercel.app";
+const VERCEL_API_URL = "https://armiemania.vercel.app";
 
 // Produtos iniciais de demonstração (exibidos enquanto não houver itens cadastrados no Firestore)
 const demoProducts = [
