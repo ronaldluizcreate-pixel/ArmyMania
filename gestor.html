@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArmieMania | Painel do Gestor</title>
+    <link rel="icon" type="image/png" href="icon.png">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        armyBlack: '#09090B',
+                        armyCard: '#121216',
+                        armyRed: '#E60023',
+                        armyRedHover: '#FF1A3C',
+                    },
+                    fontFamily: {
+                        display: ['Montserrat', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-armyBlack text-white font-sans antialiased selection:bg-armyRed selection:text-white min-h-screen">
+
+    <!-- ==================== TELA DE LOGIN DO GESTOR ==================== -->
+    <div id="adminLoginScreen" class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-armyRed/20 blur-[120px] rounded-full pointer-events-none"></div>
+        
+        <div class="relative z-10 bg-armyCard border border-white/15 rounded-2xl max-w-md w-full p-8 shadow-2xl space-y-6">
+            <div class="flex flex-col items-center text-center">
+                <img src="icon.png" alt="ArmieMania" class="w-14 h-14 rounded-xl object-cover shadow-[0_0_20px_rgba(230,0,35,0.6)] mb-3">
+                <span class="text-armyRed font-bold text-xs uppercase tracking-[0.25em]">Área Administrativa</span>
+                <h1 class="font-display font-black text-2xl mt-1">Armie<span class="text-armyRed">Mania</span> Gestor</h1>
+                <p class="text-xs text-gray-400 mt-1">Acesso restrito para gerenciamento de brindes, preços e pedidos.</p>
+            </div>
+
+            <div id="adminAuthError" class="hidden bg-red-950/70 border border-armyRed text-red-200 text-xs p-3 rounded-lg text-center"></div>
+
+            <button onclick="adminLoginGoogle()" class="w-full py-3 px-4 bg-white text-black hover:bg-gray-200 font-semibold text-sm rounded-lg flex items-center justify-center gap-3 transition">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5" alt="Google">
+                Entrar com Google
+            </button>
+
+            <div class="relative flex py-1 items-center">
+                <div class="flex-grow border-t border-white/10"></div>
+                <span class="flex-shrink mx-4 text-xs text-gray-500 uppercase">ou credenciais</span>
+                <div class="flex-grow border-t border-white/10"></div>
+            </div>
+
+            <form onsubmit="adminLoginEmail(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">E-mail do Gestor</label>
+                    <input type="email" id="adminEmail" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Senha</label>
+                    <input type="password" id="adminPassword" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <button type="submit" class="w-full py-3.5 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg shadow-[0_0_20px_rgba(230,0,35,0.4)] transition">
+                    Acessar Painel
+                </button>
+            </form>
+
+            <div class="text-center pt-2">
+                <a href="index.html" class="text-xs text-gray-400 hover:text-white transition inline-flex items-center gap-1">
+                    <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Voltar para a loja do cliente
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== DASHBOARD PRINCIPAL DO GESTOR ==================== -->
+    <div id="adminDashboard" class="hidden min-h-screen flex flex-col">
+        
+        <!-- Topbar -->
+        <header class="sticky top-0 z-40 bg-armyBlack/90 backdrop-blur-md border-b border-white/10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <img src="icon.png" alt="ArmieMania" class="w-10 h-10 rounded-lg object-cover shadow-[0_0_15px_rgba(230,0,35,0.5)]">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-display font-black text-xl tracking-wider">Armie<span class="text-armyRed">Mania</span></span>
+                            <span class="px-2 py-0.5 bg-armyRed/20 border border-armyRed/40 text-armyRed text-[10px] font-black uppercase rounded">Gestor</span>
+                        </div>
+                        <span id="loggedAdminEmail" class="block text-[11px] text-gray-400"></span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <a href="index.html" target="_blank" class="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/15 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+                        <i data-lucide="external-link" class="w-4 h-4 text-armyRed"></i>
+                        <span class="hidden sm:inline">Ver Loja Online</span>
+                    </a>
+                    <button onclick="adminLogout()" class="px-4 py-2 bg-red-950/50 hover:bg-armyRed border border-armyRed/40 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Sair</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Conteúdo Principal -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+            
+            <!-- Cards de Indicadores (KPIs) -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-armyCard border border-white/10 rounded-2xl p-5">
+                    <div class="flex items-center justify-between text-gray-400 text-xs font-medium">
+                        <span>Faturamento Total</span>
+                        <i data-lucide="dollar-sign" class="w-4 h-4 text-armyRed"></i>
+                    </div>
+                    <p id="kpiRevenue" class="font-display font-black text-2xl sm:text-3xl mt-2 text-white">R$ 0,00</p>
+                </div>
+
+                <div class="bg-armyCard border border-white/10 rounded-2xl p-5">
+                    <div class="flex items-center justify-between text-gray-400 text-xs font-medium">
+                        <span>Pedidos em Aberto</span>
+                        <i data-lucide="clock" class="w-4 h-4 text-armyRed"></i>
+                    </div>
+                    <p id="kpiPendingOrders" class="font-display font-black text-2xl sm:text-3xl mt-2 text-armyRed">0</p>
+                </div>
+
+                <div class="bg-armyCard border border-white/10 rounded-2xl p-5">
+                    <div class="flex items-center justify-between text-gray-400 text-xs font-medium">
+                        <span>Brindes no Catálogo</span>
+                        <i data-lucide="package" class="w-4 h-4 text-armyRed"></i>
+                    </div>
+                    <p id="kpiProducts" class="font-display font-black text-2xl sm:text-3xl mt-2 text-white">0</p>
+                </div>
+
+                <div class="bg-armyCard border border-white/10 rounded-2xl p-5">
+                    <div class="flex items-center justify-between text-gray-400 text-xs font-medium">
+                        <span>Fãs Cadastrados</span>
+                        <i data-lucide="users" class="w-4 h-4 text-armyRed"></i>
+                    </div>
+                    <p id="kpiCustomers" class="font-display font-black text-2xl sm:text-3xl mt-2 text-white">0</p>
+                </div>
+            </div>
+
+            <!-- Navegação por Abas -->
+            <div class="flex flex-wrap gap-2 border-b border-white/10 pb-4">
+                <button onclick="switchAdminTab('pedidos')" id="tab-btn-pedidos" class="admin-tab-btn px-5 py-2.5 rounded-lg text-xs font-display font-bold uppercase tracking-wider bg-armyRed text-white flex items-center gap-2 transition">
+                    <i data-lucide="shopping-bag" class="w-4 h-4"></i> Pedidos & Entregas
+                </button>
+                <button onclick="switchAdminTab('produtos')" id="tab-btn-produtos" class="admin-tab-btn px-5 py-2.5 rounded-lg text-xs font-display font-bold uppercase tracking-wider bg-white/5 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition">
+                    <i data-lucide="tag" class="w-4 h-4"></i> Catálogo & Preços
+                </button>
+                <button onclick="switchAdminTab('comunidade')" id="tab-btn-comunidade" class="admin-tab-btn px-5 py-2.5 rounded-lg text-xs font-display font-bold uppercase tracking-wider bg-white/5 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition">
+                    <i data-lucide="message-square" class="w-4 h-4"></i> Mural & Clientes
+                </button>
+            </div>
+
+            <!-- ==================== ABA 1: PEDIDOS & ENTREGAS ==================== -->
+            <section id="tab-pedidos" class="admin-tab-content space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="font-display font-black text-xl">Gerenciamento de Pedidos</h2>
+                        <p class="text-xs text-gray-400">Acompanhe pagamentos, prepare os kits e atualize o status até a entrega.</p>
+                    </div>
+                    <select id="orderStatusFilter" onchange="renderAdminOrders()" class="bg-armyCard border border-white/15 rounded-lg px-4 py-2.5 text-xs font-semibold focus:border-armyRed focus:outline-none">
+                        <option value="todos">Todos os Status</option>
+                        <option value="Aguardando Pagamento">Aguardando Pagamento</option>
+                        <option value="Pago / Em Preparação">Pago / Em Preparação</option>
+                        <option value="Enviado">Enviado</option>
+                        <option value="Entregue">Entregue</option>
+                        <option value="Cancelado">Cancelado</option>
+                    </select>
+                </div>
+
+                <div id="adminOrdersList" class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <!-- Pedidos injetados via gestor.js -->
+                </div>
+            </section>
+
+            <!-- ==================== ABA 2: CATÁLOGO & PRECIFICAÇÃO ==================== -->
+            <section id="tab-produtos" class="admin-tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="font-display font-black text-xl">Produtos, Estoque & Promoções</h2>
+                        <p class="text-xs text-gray-400">Cadastre novos brindes, ajuste valores e ative selos promocionais na vitrine.</p>
+                    </div>
+                    <button onclick="openProductFormModal()" class="px-5 py-3 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg shadow-[0_0_20px_rgba(230,0,35,0.4)] flex items-center gap-2 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Novo Brinde
+                    </button>
+                </div>
+
+                <div id="adminProductsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Produtos injetados via gestor.js -->
+                </div>
+            </section>
+
+            <!-- ==================== ABA 3: MURAL & CLIENTES ==================== -->
+            <section id="tab-comunidade" class="admin-tab-content hidden grid lg:grid-cols-2 gap-8">
+                <!-- Moderação de Depoimentos -->
+                <div class="space-y-4">
+                    <h3 class="font-display font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="star" class="w-5 h-5 text-armyRed"></i> Depoimentos no Mural
+                    </h3>
+                    <div id="adminReviewsList" class="space-y-3"></div>
+                </div>
+
+                <!-- Lista de Fãs Cadastrados -->
+                <div class="space-y-4">
+                    <h3 class="font-display font-bold text-lg flex items-center gap-2">
+                        <i data-lucide="users" class="w-5 h-5 text-armyRed"></i> Clientes Cadastrados
+                    </h3>
+                    <div id="adminUsersList" class="space-y-3"></div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ==================== MODAL CADASTRAR / EDITAR PRODUTO ==================== -->
+    <div id="productFormModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div onclick="closeProductFormModal()" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+        <div class="relative bg-armyCard border border-white/15 rounded-2xl max-w-lg w-full p-6 sm:p-8 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <button onclick="closeProductFormModal()" class="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+            
+            <h3 id="productFormTitle" class="font-display font-black text-xl mb-5">Cadastrar Novo Brinde</h3>
+            
+            <form onsubmit="saveProduct(event)" class="space-y-4">
+                <input type="hidden" id="editProdId">
+                
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Nome do Brinde</label>
+                    <input type="text" id="prodName" required placeholder="Ex: Kit Photocards Proof Era" class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Categoria</label>
+                        <select id="prodCategory" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                            <option value="kits">Kits Especiais</option>
+                            <option value="photocards">Photocards</option>
+                            <option value="acessorios">Acessórios</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Estoque (Unidades)</label>
+                        <input type="number" id="prodStock" min="0" value="10" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">URL da Imagem do Produto</label>
+                    <input type="url" id="prodImage" oninput="previewProductImage()" required placeholder="https://..." class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                    <img id="prodImagePreview" src="" alt="Prévia" class="hidden mt-2 w-24 h-24 object-cover rounded-lg border border-white/15">
+                </div>
+
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Descrição Detalhada</label>
+                    <textarea id="prodDesc" rows="2" required placeholder="Detalhes, tamanho, material, itens inclusos..." class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none"></textarea>
+                </div>
+
+                <!-- Precificação e Promoção -->
+                <div class="p-4 bg-black/40 border border-white/10 rounded-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold uppercase tracking-wider text-armyRed flex items-center gap-2">
+                            <input type="checkbox" id="prodPromoToggle" onchange="togglePromoFields()" class="accent-armyRed w-4 h-4">
+                            Ativar Preço Promocional
+                        </label>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label id="lblNormalPrice" class="block text-xs text-gray-400 mb-1">Preço de Venda (R$)</label>
+                            <input type="number" step="0.01" min="0" id="prodOriginalPrice" required placeholder="49.90" class="w-full bg-black/60 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                        <div id="promoPriceBox" class="hidden">
+                            <label class="block text-xs text-armyRed font-semibold mb-1">Preço Único Promo (R$)</label>
+                            <input type="number" step="0.01" min="0" id="prodPromoPrice" placeholder="39.90" class="w-full bg-black/60 border border-armyRed/50 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeProductFormModal()" class="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-semibold">Cancelar</button>
+                    <button type="submit" class="flex-1 py-3 bg-armyRed hover:bg-armyRedHover rounded-lg text-sm font-display font-bold uppercase tracking-wider">Salvar Produto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/gestor.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
