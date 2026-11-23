@@ -416,8 +416,9 @@ function renderCart() {
     if (window.lucide) lucide.createIcons();
 }
 
-// Finalizar Pedido
-window.checkoutOrder = async () => {
+// ==================== CHECKOUT COM CPF E BUSCA DE CEP (VIACEP) ====================
+
+window.checkoutOrder = () => {
     if (cart.length === 0) return alert("Adicione itens ao carrinho primeiro!");
     if (!currentUser) {
         toggleCart(false);
@@ -425,23 +426,180 @@ window.checkoutOrder = async () => {
         return alert("Faça login ou crie sua conta ArmieMania para finalizar seu pedido com segurança!");
     }
 
-    const total = cart.reduce((acc, item) => acc + (Number(item.precoPromocional) * item.qtd), 0);
+    const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional) * item.qtd), 0);
+    document.getElementById('chkProductsTotal').innerText = `R$ ${subtotal.toFixed(2)}`;
+    document.getElementById('chkFinalTotal').innerText = `R$ ${subtotal.toFixed(2)}`;
+
+    // Preenche dados já salvos no perfil do cliente, se existirem
+    if (currentUserData) {
+        if (currentUserData.cpf) document.getElementById('chkCpf').value = currentUserData.cpf;
+        if (currentUserData.whatsapp) document.getElementById('chkWhatsapp').value = currentUserData.whatsapp;
+        if (currentUserData.endereco) {
+            const e = currentUserData.endereco;
+            document.getElementById('chkCep').value = e.cep || '';
+            document.getElementById('chkStreet').value = e.rua || '';
+            document.getElementById('chkNumber').value = e.numero || '';
+            document.getElementById('chkComplement').value = e.complemento || '';
+            document.getElementById('chkNeighborhood').value = e.bairro || '';
+            document.getElementById('chkCity').value = e.cidade || '';
+            document.getElementById('chkState').value = e.estado || '';
+        }
+    }
+
+    toggleCart(false);
+    const modal = document.getElementById('checkoutModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+window.closeCheckoutModal = () => {
+    const modal = document.getElementById('checkoutModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+};
+
+window.maskCpf = (input) => {
+    let v = input.value.replace(/\D/g, '');
+    v = v.replace(/(\d{3})(\d)/, '$1.$2');
+    v = v.replace(/(\d{3})(\d)/, '$1.$2');
+    v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    input.value = v;
+};
+
+window.fetchAddressByCep = async () => {
+    const cepInput = document.getElementById('chkCep');
+    const cleanCep = cepInput.value.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+
+    cepInput.value = `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`;
 
     try {
+        const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        const data = await res.json();
+        if (data.erro) {
+            alert("CEP não encontrado. Verifique os números digitados.");
+            return;
+        }
+        document.getElementById('chkStreet').value = data.logradouro || '';
+        document.getElementById('chkNeighborhood').value = data.bairro || '';
+        document.getElementById('chkCity').value = data.localidade || '';
+        document.getElementById('chkState').value = data.uf || '';
+        document.getElementById('chkNumber').focus();
+    } catch (err) {
+        console.error("Erro ao consultar ViaCEP:", err);
+    }
+};
+
+window.confirmCheckoutOrder = async (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    const cpf = document.getElementById('chkCpf').value.trim();
+    const whatsapp = document.getElementById('chkWhatsapp').value.trim();
+    const endereco = {
+        cep: document.getElementById('chkCep').value.trim(),
+        rua: document.getElementById('chkStreet').value.trim(),
+        numero: document.getElementById('chkNumber').value.trim(),
+        complemento: document.getElementById('chkComplement').value.trim(),
+        bairro: document.getElementById('chkNeighborhood').value.trim(),
+        cidade: document.getElementById('chkCity').value.trim(),
+        estado: document.getElementById('chkState').value.trim().toUpperCase()
+    };
+
+    const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional) * item.qtd), 0);
+
+    try {
+        // Salva o pedido completo (já preparado para Asaas + SuperFrete)
         await addDoc(collection(db, "pedidos"), {
             clienteId: currentUser.uid,
             clienteNome: currentUserData?.nome || currentUser.email,
             clienteEmail: currentUser.email,
-            clienteWhatsapp: currentUserData?.whatsapp || "",
-            itens: cart.map(i => ({ id: i.id, nome: i.nome, qtd: i.qtd, preco: Number(i.precoPromocional) })),
-            total,
+            clienteCpf: cpf,
+            clienteWhatsapp: whatsapp,
+            endereco,
+            itens: cart.map(i => ({
+                id: i.id,
+                nome: i.nome,
+                qtd: i.qtd,
+                preco: Number(i.precoPromocional),
+                peso: Number(i.peso || 0.15),
+                largura: Number(i.largura || 12),
+                altura: Number(i.altura || 3),
+                comprimento: Number(i.comprimento || 16)
+            })),
+            subtotal,
+            freteValor: 0,
+            total: subtotal,
             status: "Aguardando Pagamento",
             gateway: "asaas_pendente",
             criadoEm: serverTimestamp()
         });
 
+        // Atualiza CPF, WhatsApp e Endereço no cadastro do cliente para próximas compras
+        const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        await updateDoc(doc(db, "usuarios", currentUser.uid), {
+            cpf,
+            whatsapp,
+            endereco
+        });
+
         cart = [];
         saveCart();
+        closeCheckoutModal();
+        alert("Pedido registrado com sucesso! Acompanhe o status e o código de rastreio em 'Meus Pedidos'.");
+    } catch (error) {
+        alert("Erro ao registrar pedido: " + error.message);
+    }
+};
+
+// ==================== MEUS PEDIDOS & CÓDIGO DE RASTREIO ====================
+
+window.openOrdersModal = () => {
+    if (!currentUser) return openAuthModal();
+    const modal = document.getElementById('ordersModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    const q = query(collection(db, "pedidos"), where("clienteId", "==", currentUser.uid));
+    onSnapshot(q, (snap) => {
+        const list = document.getElementById('userOrdersList');
+        if (snap.empty) {
+            list.innerHTML = `<p class="text-gray-400 text-sm text-center py-6">Você ainda não realizou nenhum pedido.</p>`;
+            return;
+        }
+        list.innerHTML = snap.docs.map(d => {
+            const o = d.data();
+            return `
+                <div class="bg-black/50 border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row justify-between gap-4">
+                    <div class="space-y-1">
+                        <span class="text-xs text-gray-500">Pedido #${d.id.slice(0, 6).toUpperCase()}</span>
+                        <p class="font-bold text-sm">${o.itens.map(i => `${i.qtd}x ${i.nome}`).join(', ')}</p>
+                        <span class="text-armyRed font-display font-bold text-base block">Total: R$ ${Number(o.total).toFixed(2)}</span>
+                        ${o.codigoRastreio ? `
+                            <div class="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/15 rounded-lg text-xs">
+                                <span class="text-gray-400">Rastreio:</span>
+                                <strong class="font-mono text-white select-all">${o.codigoRastreio}</strong>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="flex items-center">
+                        <span class="px-3 py-1.5 rounded-full text-xs font-bold bg-armyRed/20 text-armyRed border border-armyRed/40">
+                            ${o.status}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    });
+};
+
+window.closeOrdersModal = () => {
+    const modal = document.getElementById('ordersModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+};
+
+saveCart();
         toggleCart(false);
         alert("Pedido registrado com sucesso! Acompanhe o status em 'Meus Pedidos'.");
     } catch (error) {
@@ -490,3 +648,4 @@ window.closeOrdersModal = () => {
 };
 
 saveCart();
+
