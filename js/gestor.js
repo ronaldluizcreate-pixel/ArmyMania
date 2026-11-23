@@ -17,7 +17,7 @@ import {
 
 // LISTA DE E-MAILS AUTORIZADOS COMO GESTORES
 const ADMIN_EMAILS = [
-    "seu-email@gmail.com"
+    "ronaldluiz.contato@gmail.com"
 ];
 
 let ordersData = [];
