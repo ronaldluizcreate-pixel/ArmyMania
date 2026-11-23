@@ -1,8 +1,17 @@
 import { db } from './firebase-config.js';
 import { currentUser, currentUserData } from './auth.js';
-import { collection, onSnapshot, addDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { 
+    collection, 
+    onSnapshot, 
+    addDoc, 
+    updateDoc, 
+    doc, 
+    query, 
+    where, 
+    serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Produtos iniciais de demonstração (exibidos enquanto o Gestor não cadastra itens no Firebase)
+// Produtos iniciais de demonstração (exibidos enquanto não houver itens cadastrados no Firestore)
 const demoProducts = [
     {
         id: 'demo1',
@@ -13,6 +22,10 @@ const demoProducts = [
         precoPromocional: 24.90,
         promocao: true,
         estoque: 15,
+        peso: 0.10,
+        largura: 12,
+        altura: 2,
+        comprimento: 16,
         imagem: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80'
     },
     {
@@ -24,6 +37,10 @@ const demoProducts = [
         precoPromocional: 22.00,
         promocao: false,
         estoque: 20,
+        peso: 0.08,
+        largura: 11,
+        altura: 2,
+        comprimento: 16,
         imagem: 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=600&q=80'
     },
     {
@@ -35,6 +52,10 @@ const demoProducts = [
         precoPromocional: 69.90,
         promocao: true,
         estoque: 8,
+        peso: 0.45,
+        largura: 18,
+        altura: 12,
+        comprimento: 22,
         imagem: 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=80'
     },
     {
@@ -46,6 +67,10 @@ const demoProducts = [
         precoPromocional: 14.90,
         promocao: true,
         estoque: 30,
+        peso: 0.12,
+        largura: 11,
+        altura: 2,
+        comprimento: 16,
         imagem: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&w=600&q=80'
     }
 ];
@@ -61,7 +86,7 @@ onSnapshot(collection(db, "produtos"), (snapshot) => {
     if (snapshot.empty) {
         allProducts = demoProducts;
     } else {
-        allProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        allProducts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     }
     if (deckIndex >= allProducts.length) deckIndex = 0;
     renderHeroDeck();
@@ -83,14 +108,9 @@ function renderHeroDeck() {
     const prevIdx = (deckIndex - 1 + total) % total;
     const nextIdx = (deckIndex + 1) % total;
 
-    // Define as cartas visíveis no baralho (Anterior à esquerda, Próxima à direita, Atual no topo)
     const cardsToRender = [];
-    if (total > 2) {
-        cardsToRender.push({ item: allProducts[prevIdx], role: 'prev' });
-    }
-    if (total > 1) {
-        cardsToRender.push({ item: allProducts[nextIdx], role: 'next' });
-    }
+    if (total > 2) cardsToRender.push({ item: allProducts[prevIdx], role: 'prev' });
+    if (total > 1) cardsToRender.push({ item: allProducts[nextIdx], role: 'next' });
     cardsToRender.push({ item: allProducts[deckIndex], role: 'active' });
 
     stack.innerHTML = cardsToRender.map(({ item, role }) => {
@@ -108,6 +128,9 @@ function renderHeroDeck() {
             clickAction = `prevDeckCard()`;
         }
 
+        const precoOrig = Number(item.precoOriginal || 0);
+        const precoPromo = Number(item.precoPromocional || precoOrig);
+
         return `
             <div onclick="${clickAction}" class="deck-card absolute inset-0 bg-armyCard border rounded-2xl p-4 flex flex-col justify-between ${styleClasses}">
                 <div class="relative rounded-xl overflow-hidden aspect-[4/4] bg-black">
@@ -120,8 +143,8 @@ function renderHeroDeck() {
                         <p class="text-[11px] text-gray-400 line-clamp-1 mt-0.5">${item.descricao}</p>
                     </div>
                     <div class="text-right shrink-0">
-                        ${item.promocao ? `<span class="text-[11px] text-gray-500 line-through block">R$ ${Number(item.precoOriginal).toFixed(2)}</span>` : ''}
-                        <span class="text-lg font-display font-black text-armyRed">R$ ${Number(item.precoPromocional).toFixed(2)}</span>
+                        ${item.promocao ? `<span class="text-[11px] text-gray-500 line-through block">R$ ${precoOrig.toFixed(2)}</span>` : ''}
+                        <span class="text-lg font-display font-black text-armyRed">R$ ${precoPromo.toFixed(2)}</span>
                     </div>
                 </div>
             </div>
@@ -156,6 +179,8 @@ window.goToDeckCard = (idx) => {
 
 function renderProducts() {
     const grid = document.getElementById('productsGrid');
+    if (!grid) return;
+
     const searchInput = document.getElementById('searchInput');
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
@@ -163,7 +188,7 @@ function renderProducts() {
         const matchCat = activeCategory === 'todos' 
             || (activeCategory === 'promocao' && p.promocao) 
             || p.categoria === activeCategory;
-        const matchSearch = p.nome.toLowerCase().includes(searchTerm) || p.descricao.toLowerCase().includes(searchTerm);
+        const matchSearch = (p.nome || '').toLowerCase().includes(searchTerm) || (p.descricao || '').toLowerCase().includes(searchTerm);
         return matchCat && matchSearch;
     });
 
@@ -172,33 +197,38 @@ function renderProducts() {
         return;
     }
 
-    grid.innerHTML = filtered.map(prod => `
-        <div class="photocard-glow bg-armyCard border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between group">
-            <div>
-                <div class="relative aspect-square bg-black overflow-hidden">
-                    <img id="prod-img-${prod.id}" src="${prod.imagem}" alt="${prod.nome}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
-                    ${prod.promocao ? `<span class="absolute top-3 left-3 bg-armyRed text-white text-[10px] font-black uppercase px-2.5 py-1 rounded">Promoção</span>` : ''}
-                    <button onclick="openProductDetail('${prod.id}')" title="Ver detalhes" class="absolute bottom-3 right-3 p-2.5 bg-black/80 hover:bg-armyRed text-white rounded-full opacity-0 group-hover:opacity-100 transition">
-                        <i data-lucide="eye" class="w-4 h-4"></i>
+    grid.innerHTML = filtered.map(prod => {
+        const precoOrig = Number(prod.precoOriginal || 0);
+        const precoPromo = Number(prod.precoPromocional || precoOrig);
+
+        return `
+            <div class="photocard-glow bg-armyCard border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between group">
+                <div>
+                    <div class="relative aspect-square bg-black overflow-hidden">
+                        <img id="prod-img-${prod.id}" src="${prod.imagem}" alt="${prod.nome}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+                        ${prod.promocao ? `<span class="absolute top-3 left-3 bg-armyRed text-white text-[10px] font-black uppercase px-2.5 py-1 rounded">Promoção</span>` : ''}
+                        <button onclick="openProductDetail('${prod.id}')" title="Ver detalhes" class="absolute bottom-3 right-3 p-2.5 bg-black/80 hover:bg-armyRed text-white rounded-full opacity-0 group-hover:opacity-100 transition">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="p-5">
+                        <span class="text-[10px] uppercase tracking-widest text-gray-400">${prod.categoria}</span>
+                        <h3 class="font-display font-bold text-base mt-1 line-clamp-1">${prod.nome}</h3>
+                        <p class="text-xs text-gray-400 mt-1.5 line-clamp-2">${prod.descricao}</p>
+                    </div>
+                </div>
+                <div class="px-5 pb-5 pt-2 flex items-center justify-between border-t border-white/5">
+                    <div>
+                        ${prod.promocao ? `<span class="text-xs text-gray-500 line-through block">R$ ${precoOrig.toFixed(2)}</span>` : ''}
+                        <span class="font-display font-black text-lg text-white">R$ ${precoPromo.toFixed(2)}</span>
+                    </div>
+                    <button onclick="addToCart('${prod.id}', event)" class="px-4 py-2.5 bg-armyRed hover:bg-armyRedHover text-white text-xs font-bold uppercase tracking-wider rounded-lg transition flex items-center gap-1.5 active:scale-95">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Comprar
                     </button>
                 </div>
-                <div class="p-5">
-                    <span class="text-[10px] uppercase tracking-widest text-gray-400">${prod.categoria}</span>
-                    <h3 class="font-display font-bold text-base mt-1 line-clamp-1">${prod.nome}</h3>
-                    <p class="text-xs text-gray-400 mt-1.5 line-clamp-2">${prod.descricao}</p>
-                </div>
             </div>
-            <div class="px-5 pb-5 pt-2 flex items-center justify-between border-t border-white/5">
-                <div>
-                    ${prod.promocao ? `<span class="text-xs text-gray-500 line-through block">R$ ${Number(prod.precoOriginal).toFixed(2)}</span>` : ''}
-                    <span class="font-display font-black text-lg text-white">R$ ${Number(prod.precoPromocional).toFixed(2)}</span>
-                </div>
-                <button onclick="addToCart('${prod.id}', event)" class="px-4 py-2.5 bg-armyRed hover:bg-armyRedHover text-white text-xs font-bold uppercase tracking-wider rounded-lg transition flex items-center gap-1.5 active:scale-95">
-                    <i data-lucide="plus" class="w-4 h-4"></i> Comprar
-                </button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 
     if (window.lucide) lucide.createIcons();
 }
@@ -227,6 +257,9 @@ window.openProductDetail = (id) => {
     const prod = allProducts.find(p => p.id === id);
     if (!prod) return;
 
+    const precoOrig = Number(prod.precoOriginal || 0);
+    const precoPromo = Number(prod.precoPromocional || precoOrig);
+
     const modal = document.getElementById('productModal');
     const content = document.getElementById('productModalContent');
     content.innerHTML = `
@@ -238,8 +271,8 @@ window.openProductDetail = (id) => {
                 <h3 class="font-display font-black text-2xl">${prod.nome}</h3>
                 <p class="text-sm text-gray-300 leading-relaxed">${prod.descricao}</p>
                 <div class="pt-2">
-                    ${prod.promocao ? `<span class="text-sm text-gray-500 line-through block">De R$ ${Number(prod.precoOriginal).toFixed(2)}</span>` : ''}
-                    <span class="font-display font-black text-3xl text-armyRed">R$ ${Number(prod.precoPromocional).toFixed(2)}</span>
+                    ${prod.promocao ? `<span class="text-sm text-gray-500 line-through block">De R$ ${precoOrig.toFixed(2)}</span>` : ''}
+                    <span class="font-display font-black text-3xl text-armyRed">R$ ${precoPromo.toFixed(2)}</span>
                 </div>
                 <button onclick="addToCart('${prod.id}', event); closeProductModal();" class="w-full py-3.5 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg transition active:scale-95">
                     Adicionar ao Carrinho
@@ -265,7 +298,6 @@ function animateFlyToCart(prod, triggerEvent) {
     if (!cartTarget) return;
 
     const targetRect = cartTarget.getBoundingClientRect();
-    // Tenta localizar a imagem do card na grade ou no modal; se não achar, usa a posição do clique
     const sourceImg = document.getElementById(`modal-prod-img-${prod.id}`) || document.getElementById(`prod-img-${prod.id}`);
     
     let startX, startY, startW, startH;
@@ -295,7 +327,6 @@ function animateFlyToCart(prod, triggerEvent) {
     flyer.style.opacity = '0.95';
     document.body.appendChild(flyer);
 
-    // Força reflow para disparar a transição CSS suavemente
     requestAnimationFrame(() => {
         flyer.style.left = `${targetRect.left + targetRect.width / 2 - 14}px`;
         flyer.style.top = `${targetRect.top + targetRect.height / 2 - 14}px`;
@@ -317,7 +348,7 @@ function triggerCartPulse() {
     if (!cartTarget) return;
 
     cartTarget.classList.remove('cart-pulse-glow');
-    void cartTarget.offsetWidth; // Reinicia animação se clicar várias vezes seguidas
+    void cartTarget.offsetWidth;
     cartTarget.classList.add('cart-pulse-glow');
 
     if (cartCount) {
@@ -357,7 +388,6 @@ window.toggleCart = (forceState) => {
     }
 };
 
-// Adiciona ao carrinho SEM abrir a barra lateral — apenas anima o voo e o brilho
 window.addToCart = (id, event) => {
     const prod = allProducts.find(p => p.id === id);
     if (!prod) return;
@@ -387,6 +417,8 @@ function saveCart() {
 
 function renderCart() {
     const container = document.getElementById('cartItemsContainer');
+    if (!container) return;
+
     if (cart.length === 0) {
         container.innerHTML = `<p class="text-center text-gray-500 text-sm py-10">Seu carrinho está vazio.</p>`;
         document.getElementById('cartSubtotal').innerText = 'R$ 0,00';
@@ -396,13 +428,14 @@ function renderCart() {
 
     let total = 0;
     container.innerHTML = cart.map(item => {
-        total += Number(item.precoPromocional) * item.qtd;
+        const preco = Number(item.precoPromocional || item.precoOriginal || 0);
+        total += preco * item.qtd;
         return `
             <div class="flex gap-3 bg-black/40 p-3 rounded-xl border border-white/5 items-center">
                 <img src="${item.imagem}" alt="${item.nome}" class="w-16 h-16 rounded-lg object-cover">
                 <div class="flex-1">
                     <h4 class="text-sm font-bold line-clamp-1">${item.nome}</h4>
-                    <span class="text-xs text-armyRed font-bold">${item.qtd}x R$ ${Number(item.precoPromocional).toFixed(2)}</span>
+                    <span class="text-xs text-armyRed font-bold">${item.qtd}x R$ ${preco.toFixed(2)}</span>
                 </div>
                 <button onclick="removeFromCart('${item.id}')" title="Remover item" class="text-gray-500 hover:text-armyRed p-1 transition">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -426,11 +459,10 @@ window.checkoutOrder = () => {
         return alert("Faça login ou crie sua conta ArmieMania para finalizar seu pedido com segurança!");
     }
 
-    const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional) * item.qtd), 0);
+    const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional || item.precoOriginal || 0) * item.qtd), 0);
     document.getElementById('chkProductsTotal').innerText = `R$ ${subtotal.toFixed(2)}`;
     document.getElementById('chkFinalTotal').innerText = `R$ ${subtotal.toFixed(2)}`;
 
-    // Preenche dados já salvos no perfil do cliente, se existirem
     if (currentUserData) {
         if (currentUserData.cpf) document.getElementById('chkCpf').value = currentUserData.cpf;
         if (currentUserData.whatsapp) document.getElementById('chkWhatsapp').value = currentUserData.whatsapp;
@@ -506,10 +538,9 @@ window.confirmCheckoutOrder = async (e) => {
         estado: document.getElementById('chkState').value.trim().toUpperCase()
     };
 
-    const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional) * item.qtd), 0);
+    const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional || item.precoOriginal || 0) * item.qtd), 0);
 
     try {
-        // Salva o pedido completo (já preparado para Asaas + SuperFrete)
         await addDoc(collection(db, "pedidos"), {
             clienteId: currentUser.uid,
             clienteNome: currentUserData?.nome || currentUser.email,
@@ -521,7 +552,7 @@ window.confirmCheckoutOrder = async (e) => {
                 id: i.id,
                 nome: i.nome,
                 qtd: i.qtd,
-                preco: Number(i.precoPromocional),
+                preco: Number(i.precoPromocional || i.precoOriginal || 0),
                 peso: Number(i.peso || 0.15),
                 largura: Number(i.largura || 12),
                 altura: Number(i.altura || 3),
@@ -535,8 +566,6 @@ window.confirmCheckoutOrder = async (e) => {
             criadoEm: serverTimestamp()
         });
 
-        // Atualiza CPF, WhatsApp e Endereço no cadastro do cliente para próximas compras
-        const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
         await updateDoc(doc(db, "usuarios", currentUser.uid), {
             cpf,
             whatsapp,
@@ -600,52 +629,3 @@ window.closeOrdersModal = () => {
 };
 
 saveCart();
-        toggleCart(false);
-        alert("Pedido registrado com sucesso! Acompanhe o status em 'Meus Pedidos'.");
-    } catch (error) {
-        alert("Erro ao registrar pedido: " + error.message);
-    }
-};
-
-// Meus Pedidos
-window.openOrdersModal = () => {
-    if (!currentUser) return openAuthModal();
-    const modal = document.getElementById('ordersModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-
-    const q = query(collection(db, "pedidos"), where("clienteId", "==", currentUser.uid));
-    onSnapshot(q, (snap) => {
-        const list = document.getElementById('userOrdersList');
-        if (snap.empty) {
-            list.innerHTML = `<p class="text-gray-400 text-sm text-center py-6">Você ainda não realizou nenhum pedido.</p>`;
-            return;
-        }
-        list.innerHTML = snap.docs.map(d => {
-            const o = d.data();
-            return `
-                <div class="bg-black/50 border border-white/10 rounded-xl p-4 flex flex-col sm:flex-row justify-between gap-4">
-                    <div>
-                        <span class="text-xs text-gray-500">Pedido #${d.id.slice(0, 6).toUpperCase()}</span>
-                        <p class="font-bold text-sm mt-1">${o.itens.map(i => `${i.qtd}x ${i.nome}`).join(', ')}</p>
-                        <span class="text-armyRed font-display font-bold text-base mt-2 block">Total: R$ ${Number(o.total).toFixed(2)}</span>
-                    </div>
-                    <div class="flex items-center">
-                        <span class="px-3 py-1.5 rounded-full text-xs font-bold bg-armyRed/20 text-armyRed border border-armyRed/40">
-                            ${o.status}
-                        </span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    });
-};
-
-window.closeOrdersModal = () => {
-    const modal = document.getElementById('ordersModal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-};
-
-saveCart();
-
