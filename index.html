@@ -1,64 +1,384 @@
-import { db } from './firebase-config.js';
-import { currentUser, currentUserData } from './auth.js';
-import { collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArmieMania | Loja Oficial de Brindes BTS</title>
+    <!-- Ícone na aba do navegador (Favicon) -->
+    <link rel="icon" type="image/png" href="icon.png">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        armyBlack: '#09090B',
+                        armyCard: '#121216',
+                        armyRed: '#E60023',
+                        armyRedHover: '#FF1A3C',
+                    },
+                    fontFamily: {
+                        display: ['Montserrat', 'sans-serif'],
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-armyBlack text-white font-sans antialiased selection:bg-armyRed selection:text-white">
 
-const demoReviews = [
-    { nome: "Camila S.", bias: "Jungkook", nota: 5, comentario: "Os photocards holográficos chegaram impecáveis! O brilho é surreal, super recomendo a ArmieMania." },
-    { nome: "Lucas M.", bias: "Suga", nota: 5, comentario: "Comprei a Box Surpresa e veio tudo muito bem embalado com cheirinho ótimo. Atendimento nota 10!" },
-    { nome: "Beatriz R.", bias: "Jimin", nota: 5, comentario: "Melhor loja de brindes BTS! Já fiz 3 pedidos e sempre chega antes do prazo." }
-];
-
-onSnapshot(collection(db, "depoimentos"), (snap) => {
-    const reviews = snap.empty ? demoReviews : snap.docs.map(d => d.data());
-    const grid = document.getElementById('reviewsGrid');
-    grid.innerHTML = reviews.map(r => `
-        <div class="bg-armyBlack border border-white/10 p-6 rounded-2xl space-y-3">
-            <div class="flex justify-between items-center">
+    <!-- NAVBAR FIXA -->
+    <header class="fixed top-0 w-full z-40 bg-armyBlack/85 backdrop-blur-md border-b border-white/10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+            <!-- Logo com arquivo icon.png -->
+            <a href="#" class="flex items-center gap-3 group">
+                <img src="icon.png" alt="Ícone ArmieMania" class="w-10 h-10 rounded-lg object-cover shadow-[0_0_15px_rgba(230,0,35,0.6)] group-hover:scale-105 transition">
                 <div>
-                    <h4 class="font-bold text-sm">${r.nome}</h4>
-                    <span class="text-[11px] text-armyRed font-semibold">Bias: ${r.bias || 'OT7'}</span>
+                    <span class="font-display font-black text-xl tracking-wider text-white">Armie<span class="text-armyRed">Mania</span></span>
+                    <span class="block text-[10px] uppercase tracking-[0.2em] text-gray-400 -mt-1">BTS Merch & Brindes</span>
                 </div>
-                <span class="text-xs">${'⭐'.repeat(r.nota || 5)}</span>
+            </a>
+
+            <!-- Barra de Busca Desktop -->
+            <div class="hidden md:flex flex-1 max-w-md relative">
+                <input type="text" id="searchInput" placeholder="Buscar photocards, kits, Jungkook, Proof..." 
+                    class="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-11 pr-4 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-armyRed focus:ring-1 focus:ring-armyRed transition">
+                <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-4 top-3"></i>
             </div>
-            <p class="text-gray-300 text-sm leading-relaxed">"${r.comentario}"</p>
+
+            <!-- Ações do Usuário -->
+            <div class="flex items-center gap-3 sm:gap-5">
+                <a href="#catalogo" class="hidden lg:block text-sm font-medium text-gray-300 hover:text-armyRed transition">Catálogo</a>
+                <a href="#area-fa" class="hidden lg:block text-sm font-medium text-gray-300 hover:text-armyRed transition">Área dos Fãs</a>
+
+                <!-- Botão Meus Pedidos (Visível apenas logado) -->
+                <button id="btnMyOrders" onclick="openOrdersModal()" class="hidden items-center gap-1.5 text-sm font-medium text-gray-300 hover:text-white transition">
+                    <i data-lucide="package" class="w-4 h-4 text-armyRed"></i>
+                    <span class="hidden sm:inline">Meus Pedidos</span>
+                </button>
+
+                <!-- Botão Login / Perfil -->
+                <button id="btnAuth" onclick="openAuthModal()" class="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/15 px-4 py-2 rounded-full text-sm font-medium transition">
+                    <i data-lucide="user" class="w-4 h-4 text-armyRed"></i>
+                    <span id="authBtnText">Entrar</span>
+                </button>
+
+                <!-- Botão Carrinho -->
+                <button onclick="toggleCart()" class="relative p-2.5 bg-armyRed hover:bg-armyRedHover rounded-full transition shadow-[0_0_15px_rgba(230,0,35,0.4)]">
+                    <i data-lucide="shopping-bag" class="w-5 h-5 text-white"></i>
+                    <span id="cartCount" class="absolute -top-1 -right-1 bg-white text-armyBlack text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
+                </button>
+            </div>
         </div>
-    `).join('');
-});
+    </header>
 
-window.openReviewModal = () => {
-    if (!currentUser) {
-        openAuthModal();
-        return alert("Entre na sua conta para deixar seu feedback!");
-    }
-    const modal = document.getElementById('reviewModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-};
+    <!-- HERO BANNER -->
+    <section class="relative pt-32 pb-20 lg:pt-40 lg:pb-28 overflow-hidden border-b border-white/10">
+        <!-- Efeito de Luz Vermelha de Fundo -->
+        <div class="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-armyRed/20 blur-[130px] rounded-full pointer-events-none"></div>
+        
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 grid lg:grid-cols-2 gap-12 items-center">
+            <div class="space-y-6 animate-fade-in">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-armyRed/15 border border-armyRed/40 text-armyRed text-xs font-bold uppercase tracking-widest">
+                    <span class="w-2 h-2 rounded-full bg-armyRed animate-ping"></span>
+                    Coleção Exclusiva • Edição Limitada
+                </div>
+                <h1 class="font-display font-black text-4xl sm:text-6xl leading-tight tracking-tight">
+                    A PAIXÃO PELO <span class="text-transparent bg-clip-text bg-gradient-to-r from-armyRed to-white">BTS</span> EM CADA DETALHE.
+                </h1>
+                <p class="text-gray-400 text-lg max-w-xl leading-relaxed">
+                    Brindes colecionáveis, kits personalizados, photocards holográficos e itens exclusivos feitos de fã para fã. Preços únicos e envio seguro.
+                </p>
+                <div class="flex flex-wrap gap-4 pt-2">
+                    <a href="#catalogo" class="px-8 py-4 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase tracking-wider text-sm rounded-lg shadow-[0_0_25px_rgba(230,0,35,0.5)] hover:shadow-[0_0_35px_rgba(230,0,35,0.8)] transition flex items-center gap-2">
+                        Explorar Catálogo
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </a>
+                    <a href="#area-fa" class="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/15 text-white font-display font-bold uppercase tracking-wider text-sm rounded-lg transition">
+                        Mural dos Fãs
+                    </a>
+                </div>
+            </div>
 
-window.closeReviewModal = () => {
-    const modal = document.getElementById('reviewModal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-};
+            <!-- Card Destaque Interativo (Estilo Photocard) -->
+            <div class="relative flex justify-center">
+                <div class="photocard-glow w-80 sm:w-96 bg-armyCard border border-white/15 rounded-2xl p-5 shadow-2xl transform rotate-2 hover:rotate-0 transition duration-500">
+                    <div class="relative rounded-xl overflow-hidden aspect-[4/5] bg-black">
+                        <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=800&q=80" alt="Kit Especial BTS" class="w-full h-full object-cover opacity-90 hover:scale-105 transition duration-700">
+                        <span class="absolute top-3 left-3 bg-armyRed text-white text-xs font-black px-3 py-1 rounded uppercase tracking-wider">Mais Vendido</span>
+                    </div>
+                    <div class="mt-4 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-display font-bold text-lg">Kit Colecionador Proof Era</h3>
+                            <p class="text-xs text-gray-400">7 Photocards + Chaveiro Acrílico + Bottons</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs text-gray-500 line-through block">R$ 69,90</span>
+                            <span class="text-xl font-display font-black text-armyRed">R$ 49,90</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-window.submitReview = async (e) => {
-    e.preventDefault();
-    const nota = Number(document.getElementById('reviewRating').value);
-    const comentario = document.getElementById('reviewText').value;
+    <!-- CATÁLOGO DE PRODUTOS -->
+    <section id="catalogo" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+            <div>
+                <span class="text-armyRed font-bold text-xs uppercase tracking-[0.2em]">Vitrine Oficial</span>
+                <h2 class="font-display font-black text-3xl sm:text-4xl mt-1">BRINDES & COLECIONÁVEIS</h2>
+            </div>
 
-    try {
-        await addDoc(collection(db, "depoimentos"), {
-            clienteId: currentUser.uid,
-            nome: currentUserData?.nome || currentUser.email,
-            bias: currentUserData?.bias || "OT7",
-            nota,
-            comentario,
-            criadoEm: serverTimestamp()
-        });
-        document.getElementById('reviewText').value = '';
-        closeReviewModal();
-        alert("Obrigado pelo seu feedback!");
-    } catch (err) {
-        alert("Erro ao enviar: " + err.message);
-    }
-};
+            <!-- Filtros por Categoria -->
+            <div class="flex flex-wrap gap-2" id="categoryFilters">
+                <button data-cat="todos" class="filter-btn active px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-armyRed text-white transition">Todos</button>
+                <button data-cat="kits" class="filter-btn px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white/5 text-gray-300 hover:bg-white/10 transition">Kits Especiais</button>
+                <button data-cat="photocards" class="filter-btn px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white/5 text-gray-300 hover:bg-white/10 transition">Photocards</button>
+                <button data-cat="acessorios" class="filter-btn px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white/5 text-gray-300 hover:bg-white/10 transition">Acessórios</button>
+                <button data-cat="promocao" class="filter-btn px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-white/5 text-gray-300 hover:bg-white/10 transition">🔥 Promoções</button>
+            </div>
+        </div>
+
+        <!-- Grid de Produtos (Populado via JS) -->
+        <div id="productsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Cards injetados dinamicamente -->
+        </div>
+    </section>
+
+    <!-- ÁREA DE FÃ & DEPOIMENTOS -->
+    <section id="area-fa" class="py-20 bg-armyCard/60 border-t border-white/10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
+                <div>
+                    <span class="text-armyRed font-bold text-xs uppercase tracking-[0.2em]">Fandoms & Feedback</span>
+                    <h2 class="font-display font-black text-3xl sm:text-4xl mt-1">ÁREA DO FÃ • MURAL DOS FÃS</h2>
+                    <p class="text-gray-400 text-sm mt-2">Veja o que outros fãs estão dizendo sobre nossos brindes e deixe seu recado para o seu Bias!</p>
+                </div>
+                <button onclick="openReviewModal()" class="px-6 py-3 bg-white text-armyBlack hover:bg-gray-200 font-display font-bold text-xs uppercase tracking-wider rounded-lg transition flex items-center gap-2">
+                    <i data-lucide="message-square-plus" class="w-4 h-4 text-armyRed"></i>
+                    Deixar Depoimento / Feedback
+                </button>
+            </div>
+
+            <!-- Grid de Depoimentos -->
+            <div id="reviewsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Populado via JS -->
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="border-t border-white/10 py-12 bg-black text-center text-gray-500 text-sm">
+        <div class="max-w-7xl mx-auto px-4">
+            <p class="font-display font-bold text-white tracking-wider text-base mb-2">Armie<span class="text-armyRed">Mania</span></p>
+            <p>Feito com dedicação para os fandoms do BTS. Todos os direitos reservados © 2026.</p>
+        </div>
+    </footer>
+
+    <!-- ==================== MODAIS E DRAWERS ==================== -->
+
+    <!-- 1. DRAWER DO CARRINHO -->
+    <div id="cartDrawer" class="fixed inset-0 z-50 hidden">
+        <div onclick="toggleCart()" class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
+        <div class="absolute right-0 top-0 h-full w-full max-w-md bg-armyCard border-l border-white/10 flex flex-col justify-between p-6 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 class="font-display font-bold text-xl flex items-center gap-2">
+                    <i data-lucide="shopping-bag" class="w-5 h-5 text-armyRed"></i> Seu Carrinho
+                </h3>
+                <button onclick="toggleCart()" class="p-1.5 hover:bg-white/10 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div id="cartItemsContainer" class="flex-1 overflow-y-auto py-4 space-y-4">
+                <!-- Itens do carrinho -->
+            </div>
+
+            <div class="border-t border-white/10 pt-4 space-y-4">
+                <div class="flex justify-between text-sm text-gray-400">
+                    <span>Subtotal</span>
+                    <span id="cartSubtotal">R$ 0,00</span>
+                </div>
+                <div class="flex justify-between font-display font-black text-xl">
+                    <span>Total</span>
+                    <span id="cartTotal" class="text-armyRed">R$ 0,00</span>
+                </div>
+                <button onclick="checkoutOrder()" class="w-full py-4 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase tracking-wider text-sm rounded-lg shadow-[0_0_20px_rgba(230,0,35,0.4)] transition">
+                    Finalizar Pedido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. MODAL DE DETALHES DO PRODUTO -->
+    <div id="productModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div onclick="closeProductModal()" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+        <div id="productModalContent" class="relative bg-armyCard border border-white/15 rounded-2xl max-w-2xl w-full p-6 sm:p-8 z-10 shadow-2xl">
+            <!-- Conteúdo dinâmico -->
+        </div>
+    </div>
+
+    <!-- 3. MODAL DE LOGIN / CADASTRO COMPLETO -->
+    <div id="authModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div onclick="closeAuthModal()" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+        <div class="relative bg-armyCard border border-white/15 rounded-2xl max-w-md w-full p-6 sm:p-8 z-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 p-1.5 hover:bg-white/10 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+            
+            <div class="text-center mb-6">
+                <span class="text-armyRed font-bold text-xs uppercase tracking-widest">Conta ArmieMania</span>
+                <h3 id="authModalTitle" class="font-display font-black text-2xl mt-1">Entrar na sua Conta</h3>
+            </div>
+
+            <!-- Botão Google -->
+            <button onclick="loginWithGoogle()" class="w-full py-3 px-4 bg-white text-black hover:bg-gray-200 font-semibold text-sm rounded-lg flex items-center justify-center gap-3 transition mb-5">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5" alt="Google">
+                Continuar com Google
+            </button>
+
+            <div class="relative flex py-2 items-center mb-5">
+                <div class="flex-grow border-t border-white/10"></div>
+                <span class="flex-shrink mx-4 text-xs text-gray-500 uppercase">ou com e-mail</span>
+                <div class="flex-grow border-t border-white/10"></div>
+            </div>
+
+            <!-- Formulário Login -->
+            <form id="loginForm" onsubmit="handleEmailLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">E-mail</label>
+                    <input type="email" id="loginEmail" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Senha</label>
+                    <input type="password" id="loginPassword" required class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <button type="submit" class="w-full py-3.5 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg transition">Entrar</button>
+                <p class="text-center text-xs text-gray-400 pt-2">
+                    Ainda não tem conta? <button type="button" onclick="toggleAuthMode('register')" class="text-armyRed font-bold hover:underline">Cadastre-se aqui</button>
+                </p>
+            </form>
+
+            <!-- Formulário Cadastro Completo -->
+            <form id="registerForm" onsubmit="handleEmailRegister(event)" class="space-y-3 hidden">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Nome Completo</label>
+                    <input type="text" id="regName" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">E-mail</label>
+                    <input type="email" id="regEmail" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Idade</label>
+                        <input type="number" id="regAge" min="10" max="100" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Gênero</label>
+                        <select id="regGender" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                            <option value="Feminino">Feminino</option>
+                            <option value="Masculino">Masculino</option>
+                            <option value="Não-binário">Não-binário</option>
+                            <option value="Prefiro não informar">Prefiro não dizer</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">WhatsApp</label>
+                        <input type="tel" id="regPhone" placeholder="(84) 99999-9999" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Seu Bias (Opcional)</label>
+                        <select id="regBias" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                            <option value="OT7">OT7 (Todos)</option>
+                            <option value="RM">RM</option>
+                            <option value="Jin">Jin</option>
+                            <option value="Suga">Suga</option>
+                            <option value="J-Hope">J-Hope</option>
+                            <option value="Jimin">Jimin</option>
+                            <option value="V">V</option>
+                            <option value="Jungkook">Jungkook</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Senha (mín. 6 caracteres)</label>
+                    <input type="password" id="regPassword" minlength="6" required class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm focus:border-armyRed focus:outline-none">
+                </div>
+                <button type="submit" class="w-full py-3.5 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg transition mt-2">Criar Conta de Fã</button>
+                <p class="text-center text-xs text-gray-400 pt-2">
+                    Já possui cadastro? <button type="button" onclick="toggleAuthMode('login')" class="text-armyRed font-bold hover:underline">Fazer Login</button>
+                </p>
+            </form>
+
+            <!-- Área Logada (Perfil Rápido) -->
+            <div id="loggedProfileView" class="hidden text-center space-y-4">
+                <div class="w-16 h-16 bg-armyRed/20 border border-armyRed rounded-full flex items-center justify-center mx-auto font-display font-black text-2xl text-armyRed" id="profileInitial">F</div>
+                <div>
+                    <h4 id="profileNameDisplay" class="font-bold text-lg"></h4>
+                    <p id="profileEmailDisplay" class="text-xs text-gray-400"></p>
+                    <span id="profileBiasDisplay" class="inline-block mt-2 px-3 py-1 bg-white/5 rounded-full text-xs text-armyRed font-semibold"></span>
+                </div>
+                <button onclick="logoutUser()" class="w-full py-3 bg-white/10 hover:bg-red-950/60 border border-white/10 text-sm font-semibold rounded-lg transition">Sair da Conta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. MODAL DE DEPOIMENTO / FEEDBACK -->
+    <div id="reviewModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div onclick="closeReviewModal()" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+        <div class="relative bg-armyCard border border-white/15 rounded-2xl max-w-md w-full p-6 z-10">
+            <h3 class="font-display font-bold text-xl mb-4">Enviar Feedback / Recado de Fã</h3>
+            <form onsubmit="submitReview(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Avaliação</label>
+                    <select id="reviewRating" class="w-full bg-black/50 border border-white/15 rounded-lg p-2.5 text-sm">
+                        <option value="5">⭐⭐⭐⭐⭐ (5/5 - Perfeito!)</option>
+                        <option value="4">⭐⭐⭐⭐ (4/5 - Muito bom)</option>
+                        <option value="3">⭐⭐⭐ (3/5 - Bom)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Seu Comentário ou Recado</label>
+                    <textarea id="reviewText" rows="3" required placeholder="Conte o que achou dos brindes ou deixe uma mensagem..." class="w-full bg-black/50 border border-white/15 rounded-lg p-3 text-sm focus:border-armyRed focus:outline-none"></textarea>
+                </div>
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeReviewModal()" class="flex-1 py-3 bg-white/5 rounded-lg text-sm">Cancelar</button>
+                    <button type="submit" class="flex-1 py-3 bg-armyRed hover:bg-armyRedHover rounded-lg text-sm font-bold">Publicar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. MODAL MEUS PEDIDOS -->
+    <div id="ordersModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div onclick="closeOrdersModal()" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+        <div class="relative bg-armyCard border border-white/15 rounded-2xl max-w-2xl w-full p-6 z-10 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-white/10 pb-4 mb-4">
+                <h3 class="font-display font-bold text-xl">Meus Pedidos & Rastreio</h3>
+                <button onclick="closeOrdersModal()" class="p-1.5 hover:bg-white/10 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div id="userOrdersList" class="space-y-4">
+                <!-- Populado via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts Modulares -->
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/auth.js"></script>
+    <script type="module" src="js/store.js"></script>
+    <script type="module" src="js/community.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
