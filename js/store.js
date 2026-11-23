@@ -11,6 +11,9 @@ import {
     serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// URL DO SEU PROJETO NA VERCEL (Sem barra no final)
+const VERCEL_API_URL = "https://SEU-PROJETO.vercel.app";
+
 // Produtos iniciais de demonstração (exibidos enquanto não houver itens cadastrados no Firestore)
 const demoProducts = [
     {
@@ -80,6 +83,9 @@ let cart = JSON.parse(localStorage.getItem('armiemania_cart')) || [];
 let activeCategory = 'todos';
 let deckIndex = 0;
 let isCartOpen = false;
+let selectedShipping = null;
+let shippingOptions = [];
+let activeOrderUnsubscribe = null;
 
 // Escutar produtos do Firestore em tempo real
 onSnapshot(collection(db, "produtos"), (snapshot) => {
@@ -200,13 +206,14 @@ function renderProducts() {
     grid.innerHTML = filtered.map(prod => {
         const precoOrig = Number(prod.precoOriginal || 0);
         const precoPromo = Number(prod.precoPromocional || precoOrig);
+        const semEstoque = Number(prod.estoque ?? 10) <= 0;
 
         return `
             <div class="photocard-glow bg-armyCard border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between group">
                 <div>
                     <div class="relative aspect-square bg-black overflow-hidden">
-                        <img id="prod-img-${prod.id}" src="${prod.imagem}" alt="${prod.nome}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
-                        ${prod.promocao ? `<span class="absolute top-3 left-3 bg-armyRed text-white text-[10px] font-black uppercase px-2.5 py-1 rounded">Promoção</span>` : ''}
+                        <img id="prod-img-${prod.id}" src="${prod.imagem}" alt="${prod.nome}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500 ${semEstoque ? 'opacity-40 grayscale' : ''}">
+                        ${semEstoque ? `<span class="absolute top-3 left-3 bg-zinc-800 text-gray-300 text-[10px] font-black uppercase px-2.5 py-1 rounded">Esgotado</span>` : (prod.promocao ? `<span class="absolute top-3 left-3 bg-armyRed text-white text-[10px] font-black uppercase px-2.5 py-1 rounded">Promoção</span>` : '')}
                         <button onclick="openProductDetail('${prod.id}')" title="Ver detalhes" class="absolute bottom-3 right-3 p-2.5 bg-black/80 hover:bg-armyRed text-white rounded-full opacity-0 group-hover:opacity-100 transition">
                             <i data-lucide="eye" class="w-4 h-4"></i>
                         </button>
@@ -222,8 +229,8 @@ function renderProducts() {
                         ${prod.promocao ? `<span class="text-xs text-gray-500 line-through block">R$ ${precoOrig.toFixed(2)}</span>` : ''}
                         <span class="font-display font-black text-lg text-white">R$ ${precoPromo.toFixed(2)}</span>
                     </div>
-                    <button onclick="addToCart('${prod.id}', event)" class="px-4 py-2.5 bg-armyRed hover:bg-armyRedHover text-white text-xs font-bold uppercase tracking-wider rounded-lg transition flex items-center gap-1.5 active:scale-95">
-                        <i data-lucide="plus" class="w-4 h-4"></i> Comprar
+                    <button ${semEstoque ? 'disabled' : `onclick="addToCart('${prod.id}', event)"`} class="px-4 py-2.5 ${semEstoque ? 'bg-white/10 text-gray-500 cursor-not-allowed' : 'bg-armyRed hover:bg-armyRedHover text-white active:scale-95'} text-xs font-bold uppercase tracking-wider rounded-lg transition flex items-center gap-1.5">
+                        <i data-lucide="plus" class="w-4 h-4"></i> ${semEstoque ? 'Indisponível' : 'Comprar'}
                     </button>
                 </div>
             </div>
@@ -449,7 +456,19 @@ function renderCart() {
     if (window.lucide) lucide.createIcons();
 }
 
-// ==================== CHECKOUT COM CPF E BUSCA DE CEP (VIACEP) ====================
+// ==================== CHECKOUT (SUPERFRETE + ASAAS PIX) ====================
+
+function updateCheckoutSummary() {
+    const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional || item.precoOriginal || 0) * item.qtd), 0);
+    const freteValor = selectedShipping ? Number(selectedShipping.valor) : 0;
+    const total = subtotal + freteValor;
+
+    document.getElementById('chkProductsTotal').innerText = `R$ ${subtotal.toFixed(2)}`;
+    document.getElementById('chkShippingInfo').innerText = selectedShipping 
+        ? `${selectedShipping.nome} (${selectedShipping.prazo} dias) - R$ ${freteValor.toFixed(2)}`
+        : 'Informe o CEP acima';
+    document.getElementById('chkFinalTotal').innerText = `R$ ${total.toFixed(2)}`;
+}
 
 window.checkoutOrder = () => {
     if (cart.length === 0) return alert("Adicione itens ao carrinho primeiro!");
@@ -459,9 +478,11 @@ window.checkoutOrder = () => {
         return alert("Faça login ou crie sua conta ArmieMania para finalizar seu pedido com segurança!");
     }
 
-    const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional || item.precoOriginal || 0) * item.qtd), 0);
-    document.getElementById('chkProductsTotal').innerText = `R$ ${subtotal.toFixed(2)}`;
-    document.getElementById('chkFinalTotal').innerText = `R$ ${subtotal.toFixed(2)}`;
+    selectedShipping = null;
+    shippingOptions = [];
+    document.getElementById('shippingOptionsContainer').classList.add('hidden');
+    document.getElementById('checkoutStepForm').classList.remove('hidden');
+    document.getElementById('checkoutStepPix').classList.add('hidden');
 
     if (currentUserData) {
         if (currentUserData.cpf) document.getElementById('chkCpf').value = currentUserData.cpf;
@@ -475,9 +496,11 @@ window.checkoutOrder = () => {
             document.getElementById('chkNeighborhood').value = e.bairro || '';
             document.getElementById('chkCity').value = e.cidade || '';
             document.getElementById('chkState').value = e.estado || '';
+            if (e.cep) fetchAddressAndShipping();
         }
     }
 
+    updateCheckoutSummary();
     toggleCart(false);
     const modal = document.getElementById('checkoutModal');
     modal.classList.remove('hidden');
@@ -485,6 +508,10 @@ window.checkoutOrder = () => {
 };
 
 window.closeCheckoutModal = () => {
+    if (activeOrderUnsubscribe) {
+        activeOrderUnsubscribe();
+        activeOrderUnsubscribe = null;
+    }
     const modal = document.getElementById('checkoutModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -498,33 +525,85 @@ window.maskCpf = (input) => {
     input.value = v;
 };
 
-window.fetchAddressByCep = async () => {
+// Busca endereço (ViaCEP) e cota frete real na Vercel (/api/frete -> SuperFrete)
+window.fetchAddressAndShipping = async () => {
     const cepInput = document.getElementById('chkCep');
     const cleanCep = cepInput.value.replace(/\D/g, '');
     if (cleanCep.length !== 8) return;
 
     cepInput.value = `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}`;
+    document.getElementById('chkShippingInfo').innerText = 'Calculando opções no SuperFrete...';
 
+    // 1. Consulta ViaCEP
     try {
-        const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-        const data = await res.json();
-        if (data.erro) {
-            alert("CEP não encontrado. Verifique os números digitados.");
-            return;
+        const resCep = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        const dataCep = await resCep.json();
+        if (!dataCep.erro) {
+            document.getElementById('chkStreet').value = dataCep.logradouro || '';
+            document.getElementById('chkNeighborhood').value = dataCep.bairro || '';
+            document.getElementById('chkCity').value = dataCep.localidade || '';
+            document.getElementById('chkState').value = dataCep.uf || '';
         }
-        document.getElementById('chkStreet').value = data.logradouro || '';
-        document.getElementById('chkNeighborhood').value = data.bairro || '';
-        document.getElementById('chkCity').value = data.localidade || '';
-        document.getElementById('chkState').value = data.uf || '';
-        document.getElementById('chkNumber').focus();
     } catch (err) {
-        console.error("Erro ao consultar ViaCEP:", err);
+        console.error("Erro ViaCEP:", err);
     }
+
+    // 2. Consulta SuperFrete via Vercel
+    try {
+        const resFrete = await fetch(`${VERCEL_API_URL}/api/frete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cepDestino: cleanCep,
+                itens: cart
+            })
+        });
+        const dataFrete = await resFrete.json();
+        const container = document.getElementById('shippingOptionsContainer');
+        const list = document.getElementById('shippingOptionsList');
+
+        if (resFrete.ok && dataFrete.opcoes && dataFrete.opcoes.length > 0) {
+            shippingOptions = dataFrete.opcoes;
+            selectedShipping = shippingOptions[0]; // Seleciona o mais barato por padrão
+            container.classList.remove('hidden');
+
+            list.innerHTML = shippingOptions.map((op, idx) => `
+                <label onclick="selectShippingOption(${idx})" class="flex items-center justify-between p-2.5 rounded-lg border ${idx === 0 ? 'border-armyRed bg-armyRed/10' : 'border-white/10 bg-black/40'} cursor-pointer transition">
+                    <div class="flex items-center gap-2.5">
+                        <input type="radio" name="shippingOpt" ${idx === 0 ? 'checked' : ''} class="accent-armyRed">
+                        <div>
+                            <span class="text-xs font-bold block">${op.empresa} - ${op.nome}</span>
+                            <span class="text-[11px] text-gray-400">Entrega em até ${op.prazo} dias úteis</span>
+                        </div>
+                    </div>
+                    <span class="font-display font-bold text-sm text-white">R$ ${Number(op.valor).toFixed(2)}</span>
+                </label>
+            `).join('');
+            updateCheckoutSummary();
+        } else {
+            document.getElementById('chkShippingInfo').innerText = 'Não disponível para este CEP';
+        }
+    } catch (err) {
+        console.error("Erro ao cotar frete:", err);
+        document.getElementById('chkShippingInfo').innerText = 'Erro ao calcular frete';
+    }
+};
+
+window.selectShippingOption = (idx) => {
+    selectedShipping = shippingOptions[idx];
+    updateCheckoutSummary();
 };
 
 window.confirmCheckoutOrder = async (e) => {
     e.preventDefault();
     if (!currentUser) return;
+    if (!selectedShipping) {
+        return alert("Informe um CEP válido e aguarde o cálculo do frete antes de finalizar!");
+    }
+
+    const btn = document.getElementById('btnSubmitCheckout');
+    btn.disabled = true;
+    btn.innerText = "Gerando Pix no Asaas...";
 
     const cpf = document.getElementById('chkCpf').value.trim();
     const whatsapp = document.getElementById('chkWhatsapp').value.trim();
@@ -539,9 +618,12 @@ window.confirmCheckoutOrder = async (e) => {
     };
 
     const subtotal = cart.reduce((acc, item) => acc + (Number(item.precoPromocional || item.precoOriginal || 0) * item.qtd), 0);
+    const freteValor = Number(selectedShipping.valor);
+    const total = Number((subtotal + freteValor).toFixed(2));
 
     try {
-        await addDoc(collection(db, "pedidos"), {
+        // 1. Cria o pedido no Firestore
+        const pedidoDoc = await addDoc(collection(db, "pedidos"), {
             clienteId: currentUser.uid,
             clienteNome: currentUserData?.nome || currentUser.email,
             clienteEmail: currentUser.email,
@@ -559,26 +641,65 @@ window.confirmCheckoutOrder = async (e) => {
                 comprimento: Number(i.comprimento || 16)
             })),
             subtotal,
-            freteValor: 0,
-            total: subtotal,
+            freteServicoId: selectedShipping.id,
+            freteServico: `${selectedShipping.empresa} - ${selectedShipping.nome}`,
+            freteValor,
+            total,
             status: "Aguardando Pagamento",
-            gateway: "asaas_pendente",
             criadoEm: serverTimestamp()
         });
 
-        await updateDoc(doc(db, "usuarios", currentUser.uid), {
-            cpf,
-            whatsapp,
-            endereco
-        });
+        // 2. Atualiza perfil do cliente
+        await updateDoc(doc(db, "usuarios", currentUser.uid), { cpf, whatsapp, endereco });
 
+        // 3. Chama a Vercel (/api/criar-pagamento) para gerar o QR Code Pix no Asaas
+        const payRes = await fetch(`${VERCEL_API_URL}/api/criar-pagamento`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pedidoId: pedidoDoc.id })
+        });
+        const payData = await payRes.json();
+
+        if (!payRes.ok) {
+            throw new Error(payData.error || "Erro ao gerar cobrança Pix no Asaas");
+        }
+
+        // Limpa carrinho e exibe a tela do QR Code Pix
         cart = [];
         saveCart();
-        closeCheckoutModal();
-        alert("Pedido registrado com sucesso! Acompanhe o status e o código de rastreio em 'Meus Pedidos'.");
+
+        document.getElementById('checkoutStepForm').classList.add('hidden');
+        document.getElementById('checkoutStepPix').classList.remove('hidden');
+        document.getElementById('pixQrCodeImg').src = `data:image/png;base64,${payData.pixQrCodeBase64}`;
+        document.getElementById('pixCopyPasteInput').value = payData.pixCopiaECola || '';
+        document.getElementById('pixInvoiceLink').href = payData.invoiceUrl || '#';
+
+        // 4. Escuta o pedido em tempo real para avisar assim que o Webhook confirmar o Pix
+        activeOrderUnsubscribe = onSnapshot(doc(db, "pedidos", pedidoDoc.id), (snap) => {
+            const updated = snap.data();
+            if (updated && updated.status === 'Pago / Em Preparação') {
+                const statusBox = document.getElementById('pixLiveStatusBox');
+                statusBox.className = "p-4 bg-emerald-950/70 border border-emerald-500 rounded-xl text-xs text-emerald-300 space-y-1";
+                statusBox.innerHTML = `
+                    <strong class="block text-sm text-white">✅ Pagamento Confirmado!</strong>
+                    <span>Seu pedido já entrou em preparação e a etiqueta foi gerada.</span>
+                    ${updated.codigoRastreio ? `<span class="block font-mono text-white pt-1">Rastreio: <strong>${updated.codigoRastreio}</strong></span>` : ''}
+                `;
+            }
+        });
     } catch (error) {
-        alert("Erro ao registrar pedido: " + error.message);
+        alert("Erro ao finalizar pedido: " + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Gerar Pix e Finalizar Pedido";
     }
+};
+
+window.copyPixCode = () => {
+    const input = document.getElementById('pixCopyPasteInput');
+    input.select();
+    navigator.clipboard.writeText(input.value);
+    alert("Código Pix Copia e Cola copiado!");
 };
 
 // ==================== MEUS PEDIDOS & CÓDIGO DE RASTREIO ====================
@@ -609,6 +730,9 @@ window.openOrdersModal = () => {
                                 <span class="text-gray-400">Rastreio:</span>
                                 <strong class="font-mono text-white select-all">${o.codigoRastreio}</strong>
                             </div>
+                        ` : ''}
+                        ${o.status === 'Aguardando Pagamento' && o.invoiceUrl ? `
+                            <a href="${o.invoiceUrl}" target="_blank" class="inline-block mt-2 text-xs text-armyRed underline font-semibold">Pagar fatura Pix pendente</a>
                         ` : ''}
                     </div>
                     <div class="flex items-center">
