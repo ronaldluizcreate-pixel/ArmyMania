@@ -1,8 +1,8 @@
 import { db } from './firebase-config.js';
 import { currentUser, currentUserData } from './auth.js';
-import { collection, onSnapshot, addDoc, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, onSnapshot, addDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Produtos iniciais de demonstração (enquanto o Gestor não cadastra no banco)
+// Produtos iniciais de demonstração (exibidos enquanto o Gestor não cadastra itens no Firebase)
 const demoProducts = [
     {
         id: 'demo1',
@@ -17,7 +17,7 @@ const demoProducts = [
     },
     {
         id: 'demo2',
-        nome: 'Chaveiro Acrílico Army Bomb Ver.4',
+        nome: 'Chaveiro Acrílico Lightstick Ver.4',
         categoria: 'acessorios',
         descricao: 'Chaveiro resistente em acrílico duplo com pingente metálico vermelho.',
         precoOriginal: 22.00,
@@ -51,10 +51,10 @@ const demoProducts = [
 ];
 
 let allProducts = [];
-let cart = JSON.parse(localStorage.getItem('army_cart')) || [];
+let cart = JSON.parse(localStorage.getItem('armiemania_cart')) || [];
 let activeCategory = 'todos';
 
-// Escutar produtos do Firestore em tempo real (com fallback para demo)
+// Escutar produtos do Firestore em tempo real (com fallback para itens de demonstração)
 onSnapshot(collection(db, "produtos"), (snapshot) => {
     if (snapshot.empty) {
         allProducts = demoProducts;
@@ -63,14 +63,16 @@ onSnapshot(collection(db, "produtos"), (snapshot) => {
     }
     renderProducts();
 }, () => {
-    // Se ainda não configurou as chaves do Firebase, exibe os itens demo
+    // Se as chaves do Firebase ainda não foram configuradas, exibe os itens demo
     allProducts = demoProducts;
     renderProducts();
 });
 
+// Renderizar vitrine de produtos
 function renderProducts() {
     const grid = document.getElementById('productsGrid');
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const searchInput = document.getElementById('searchInput');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
 
     const filtered = allProducts.filter(p => {
         const matchCat = activeCategory === 'todos' 
@@ -80,13 +82,18 @@ function renderProducts() {
         return matchCat && matchSearch;
     });
 
+    if (filtered.length === 0) {
+        grid.innerHTML = `<p class="col-span-full text-center text-gray-500 py-12">Nenhum brinde encontrado com esse filtro.</p>`;
+        return;
+    }
+
     grid.innerHTML = filtered.map(prod => `
         <div class="photocard-glow bg-armyCard border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between group">
             <div>
                 <div class="relative aspect-square bg-black overflow-hidden">
                     <img src="${prod.imagem}" alt="${prod.nome}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
                     ${prod.promocao ? `<span class="absolute top-3 left-3 bg-armyRed text-white text-[10px] font-black uppercase px-2.5 py-1 rounded">Promoção</span>` : ''}
-                    <button onclick="openProductDetail('${prod.id}')" class="absolute bottom-3 right-3 p-2.5 bg-black/80 hover:bg-armyRed text-white rounded-full opacity-0 group-hover:opacity-100 transition">
+                    <button onclick="openProductDetail('${prod.id}')" title="Ver detalhes" class="absolute bottom-3 right-3 p-2.5 bg-black/80 hover:bg-armyRed text-white rounded-full opacity-0 group-hover:opacity-100 transition">
                         <i data-lucide="eye" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -98,8 +105,8 @@ function renderProducts() {
             </div>
             <div class="px-5 pb-5 pt-2 flex items-center justify-between border-t border-white/5">
                 <div>
-                    ${prod.promocao ? `<span class="text-xs text-gray-500 line-through block">R$ ${prod.precoOriginal.toFixed(2)}</span>` : ''}
-                    <span class="font-display font-black text-lg text-white">R$ ${prod.precoPromocional.toFixed(2)}</span>
+                    ${prod.promocao ? `<span class="text-xs text-gray-500 line-through block">R$ ${Number(prod.precoOriginal).toFixed(2)}</span>` : ''}
+                    <span class="font-display font-black text-lg text-white">R$ ${Number(prod.precoPromocional).toFixed(2)}</span>
                 </div>
                 <button onclick="addToCart('${prod.id}')" class="px-4 py-2.5 bg-armyRed hover:bg-armyRedHover text-white text-xs font-bold uppercase tracking-wider rounded-lg transition flex items-center gap-1.5">
                     <i data-lucide="plus" class="w-4 h-4"></i> Comprar
@@ -108,10 +115,10 @@ function renderProducts() {
         </div>
     `).join('');
 
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
 }
 
-// Filtros e Busca
+// Eventos de Filtro por Categoria
 document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.filter-btn').forEach(b => {
@@ -125,9 +132,13 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     });
 });
 
-document.getElementById('searchInput').addEventListener('input', renderProducts);
+// Evento de Busca
+const searchEl = document.getElementById('searchInput');
+if (searchEl) {
+    searchEl.addEventListener('input', renderProducts);
+}
 
-// Modal de Detalhes
+// Modal de Detalhes do Produto
 window.openProductDetail = (id) => {
     const prod = allProducts.find(p => p.id === id);
     if (!prod) return;
@@ -137,14 +148,14 @@ window.openProductDetail = (id) => {
     content.innerHTML = `
         <button onclick="closeProductModal()" class="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
         <div class="grid sm:grid-cols-2 gap-6 items-center">
-            <img src="${prod.imagem}" class="w-full aspect-square object-cover rounded-xl border border-white/10">
+            <img src="${prod.imagem}" alt="${prod.nome}" class="w-full aspect-square object-cover rounded-xl border border-white/10">
             <div class="space-y-4">
                 <span class="px-3 py-1 bg-armyRed/20 text-armyRed text-xs font-bold uppercase rounded-full">${prod.categoria}</span>
                 <h3 class="font-display font-black text-2xl">${prod.nome}</h3>
                 <p class="text-sm text-gray-300 leading-relaxed">${prod.descricao}</p>
                 <div class="pt-2">
-                    ${prod.promocao ? `<span class="text-sm text-gray-500 line-through block">De R$ ${prod.precoOriginal.toFixed(2)}</span>` : ''}
-                    <span class="font-display font-black text-3xl text-armyRed">R$ ${prod.precoPromocional.toFixed(2)}</span>
+                    ${prod.promocao ? `<span class="text-sm text-gray-500 line-through block">De R$ ${Number(prod.precoOriginal).toFixed(2)}</span>` : ''}
+                    <span class="font-display font-black text-3xl text-armyRed">R$ ${Number(prod.precoPromocional).toFixed(2)}</span>
                 </div>
                 <button onclick="addToCart('${prod.id}'); closeProductModal();" class="w-full py-3.5 bg-armyRed hover:bg-armyRedHover text-white font-display font-bold uppercase text-xs tracking-wider rounded-lg transition">
                     Adicionar ao Carrinho
@@ -154,7 +165,7 @@ window.openProductDetail = (id) => {
     `;
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
 };
 
 window.closeProductModal = () => {
@@ -163,7 +174,7 @@ window.closeProductModal = () => {
     modal.classList.remove('flex');
 };
 
-// Carrinho
+// Controle do Carrinho Lateral
 window.toggleCart = () => {
     document.getElementById('cartDrawer').classList.toggle('hidden');
     renderCart();
@@ -171,6 +182,8 @@ window.toggleCart = () => {
 
 window.addToCart = (id) => {
     const prod = allProducts.find(p => p.id === id);
+    if (!prod) return;
+
     const existing = cart.find(item => item.id === id);
     if (existing) {
         existing.qtd += 1;
@@ -188,9 +201,10 @@ window.removeFromCart = (id) => {
 };
 
 function saveCart() {
-    localStorage.setItem('army_cart', JSON.stringify(cart));
+    localStorage.setItem('armiemania_cart', JSON.stringify(cart));
     const totalItems = cart.reduce((acc, item) => acc + item.qtd, 0);
-    document.getElementById('cartCount').innerText = totalItems;
+    const countEl = document.getElementById('cartCount');
+    if (countEl) countEl.innerText = totalItems;
 }
 
 function renderCart() {
@@ -204,34 +218,36 @@ function renderCart() {
 
     let total = 0;
     container.innerHTML = cart.map(item => {
-        total += item.precoPromocional * item.qtd;
+        total += Number(item.precoPromocional) * item.qtd;
         return `
             <div class="flex gap-3 bg-black/40 p-3 rounded-xl border border-white/5 items-center">
-                <img src="${item.imagem}" class="w-16 h-16 rounded-lg object-cover">
+                <img src="${item.imagem}" alt="${item.nome}" class="w-16 h-16 rounded-lg object-cover">
                 <div class="flex-1">
                     <h4 class="text-sm font-bold line-clamp-1">${item.nome}</h4>
-                    <span class="text-xs text-armyRed font-bold">${item.qtd}x R$ ${item.precoPromocional.toFixed(2)}</span>
+                    <span class="text-xs text-armyRed font-bold">${item.qtd}x R$ ${Number(item.precoPromocional).toFixed(2)}</span>
                 </div>
-                <button onclick="removeFromCart('${item.id}')" class="text-gray-500 hover:text-armyRed p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                <button onclick="removeFromCart('${item.id}')" title="Remover item" class="text-gray-500 hover:text-armyRed p-1">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
             </div>
         `;
     }).join('');
 
     document.getElementById('cartSubtotal').innerText = `R$ ${total.toFixed(2)}`;
     document.getElementById('cartTotal').innerText = `R$ ${total.toFixed(2)}`;
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
 }
 
-// Finalizar Pedido (Exige conta logada + cria registro no Firestore para o Gestor e futuro Asaas)
+// Finalizar Pedido (Salva no Firestore para o Gestor e prepara integração Asaas)
 window.checkoutOrder = async () => {
     if (cart.length === 0) return alert("Adicione itens ao carrinho primeiro!");
     if (!currentUser) {
         toggleCart();
         openAuthModal();
-        return alert("Faça login ou crie sua conta ARMY Mania para finalizar seu pedido com segurança!");
+        return alert("Faça login ou crie sua conta ArmieMania para finalizar seu pedido com segurança!");
     }
 
-    const total = cart.reduce((acc, item) => acc + (item.precoPromocional * item.qtd), 0);
+    const total = cart.reduce((acc, item) => acc + (Number(item.precoPromocional) * item.qtd), 0);
 
     try {
         await addDoc(collection(db, "pedidos"), {
@@ -239,7 +255,7 @@ window.checkoutOrder = async () => {
             clienteNome: currentUserData?.nome || currentUser.email,
             clienteEmail: currentUser.email,
             clienteWhatsapp: currentUserData?.whatsapp || "",
-            itens: cart.map(i => ({ id: i.id, nome: i.nome, qtd: i.qtd, preco: i.precoPromocional })),
+            itens: cart.map(i => ({ id: i.id, nome: i.nome, qtd: i.qtd, preco: Number(i.precoPromocional) })),
             total,
             status: "Aguardando Pagamento",
             gateway: "asaas_pendente",
@@ -255,7 +271,7 @@ window.checkoutOrder = async () => {
     }
 };
 
-// Meus Pedidos
+// Meus Pedidos (Rastreio em tempo real)
 window.openOrdersModal = () => {
     if (!currentUser) return openAuthModal();
     const modal = document.getElementById('ordersModal');
@@ -276,7 +292,7 @@ window.openOrdersModal = () => {
                     <div>
                         <span class="text-xs text-gray-500">Pedido #${d.id.slice(0, 6).toUpperCase()}</span>
                         <p class="font-bold text-sm mt-1">${o.itens.map(i => `${i.qtd}x ${i.nome}`).join(', ')}</p>
-                        <span class="text-armyRed font-display font-bold text-base mt-2 block">Total: R$ ${o.total.toFixed(2)}</span>
+                        <span class="text-armyRed font-display font-bold text-base mt-2 block">Total: R$ ${Number(o.total).toFixed(2)}</span>
                     </div>
                     <div class="flex items-center">
                         <span class="px-3 py-1.5 rounded-full text-xs font-bold bg-armyRed/20 text-armyRed border border-armyRed/40">
@@ -295,4 +311,5 @@ window.closeOrdersModal = () => {
     modal.classList.remove('flex');
 };
 
+// Inicializar contador do carrinho ao carregar a página
 saveCart();
