@@ -32,7 +32,7 @@ window.toggleAuthMode = (mode) => {
     if (mode === 'register') {
         loginForm.classList.add('hidden');
         registerForm.classList.remove('hidden');
-        title.innerText = 'Criar Cadastro ARMY';
+        title.innerText = 'Criar Cadastro de Fã';
     } else {
         registerForm.classList.add('hidden');
         loginForm.classList.remove('hidden');
@@ -50,7 +50,7 @@ window.loginWithGoogle = async () => {
 
         if (!userSnap.exists()) {
             await setDoc(userRef, {
-                nome: user.displayName || "ARMY",
+                nome: user.displayName || "Fã BTS",
                 email: user.email,
                 idade: null,
                 genero: "Não informado",
@@ -123,7 +123,7 @@ onAuthStateChanged(auth, async (user) => {
 
     if (user) {
         const userSnap = await getDoc(doc(db, "usuarios", user.uid));
-        currentUserData = userSnap.exists() ? userSnap.data() : { nome: user.displayName || "ARMY", email: user.email, bias: "OT7" };
+        currentUserData = userSnap.exists() ? userSnap.data() : { nome: user.displayName || "Fã BTS", email: user.email, bias: "OT7" };
 
         const firstName = currentUserData.nome.split(' ')[0];
         authBtnText.innerText = firstName;
@@ -134,7 +134,7 @@ onAuthStateChanged(auth, async (user) => {
         loginForm.classList.add('hidden');
         registerForm.classList.add('hidden');
         loggedView.classList.remove('hidden');
-        document.getElementById('authModalTitle').innerText = 'Meu Perfil ARMY';
+        document.getElementById('authModalTitle').innerText = 'Meu Perfil de Fã';
         document.getElementById('profileInitial').innerText = firstName.charAt(0).toUpperCase();
         document.getElementById('profileNameDisplay').innerText = currentUserData.nome;
         document.getElementById('profileEmailDisplay').innerText = currentUserData.email;
