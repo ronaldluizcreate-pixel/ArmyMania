@@ -61,7 +61,6 @@ onAuthStateChanged(auth, (user) => {
     const dashboard = document.getElementById('adminDashboard');
 
     if (user) {
-        // Verifica se o e-mail logado está na lista de gestores autorizados
         if (ADMIN_EMAILS.includes(user.email.toLowerCase())) {
             loginScreen.classList.add('hidden');
             dashboard.classList.remove('hidden');
@@ -85,29 +84,24 @@ function initRealtimeListeners() {
     if (listenersStarted) return;
     listenersStarted = true;
 
-    // 1. Pedidos
     onSnapshot(collection(db, "pedidos"), (snap) => {
         ordersData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        // Ordena do mais recente para o mais antigo
         ordersData.sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
         updateKPIs();
         renderAdminOrders();
     });
 
-    // 2. Produtos
     onSnapshot(collection(db, "produtos"), (snap) => {
         productsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         updateKPIs();
         renderAdminProducts();
     });
 
-    // 3. Depoimentos
     onSnapshot(collection(db, "depoimentos"), (snap) => {
         reviewsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         renderAdminReviews();
     });
 
-    // 4. Usuários
     onSnapshot(collection(db, "usuarios"), (snap) => {
         usersData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         updateKPIs();
@@ -169,6 +163,11 @@ window.renderAdminOrders = () => {
         const waMessage = encodeURIComponent(`Olá ${order.clienteNome}! Aqui é da ArmieMania sobre o seu pedido #${order.id.slice(0, 6).toUpperCase()} (${order.status}).`);
         const waLink = cleanPhone ? `https://wa.me/55${cleanPhone}?text=${waMessage}` : null;
 
+        const end = order.endereco || {};
+        const addressText = end.cep 
+            ? `${end.rua}, ${end.numero}${end.complemento ? ' - ' + end.complemento : ''} • ${end.bairro}, ${end.cidade}/${end.estado} (CEP: ${end.cep})`
+            : 'Endereço não informado';
+
         return `
             <div class="bg-armyCard border border-white/10 rounded-2xl p-5 flex flex-col justify-between gap-4">
                 <div class="space-y-3">
@@ -176,9 +175,18 @@ window.renderAdminOrders = () => {
                         <div>
                             <span class="text-xs font-mono text-armyRed font-bold">#${order.id.slice(0, 6).toUpperCase()}</span>
                             <h4 class="font-bold text-base">${order.clienteNome}</h4>
-                            <p class="text-xs text-gray-400">${order.clienteEmail}</p>
+                            <p class="text-xs text-gray-400">${order.clienteEmail} ${order.clienteCpf ? `• CPF: ${order.clienteCpf}` : ''}</p>
                         </div>
-                        <span class="font-display font-black text-xl text-white">R$ ${Number(order.total).toFixed(2)}</span>
+                        <div class="text-right">
+                            <span class="font-display font-black text-xl text-white block">R$ ${Number(order.total).toFixed(2)}</span>
+                            ${order.freteValor ? `<span class="text-[11px] text-gray-400">Frete (${order.freteServico || 'Envio'}): R$ ${Number(order.freteValor).toFixed(2)}</span>` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Endereço de Entrega -->
+                    <div class="bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-gray-300 flex items-start gap-2">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-armyRed shrink-0 mt-0.5"></i>
+                        <span>${addressText}</span>
                     </div>
 
                     <!-- Itens do Pedido -->
@@ -191,10 +199,11 @@ window.renderAdminOrders = () => {
                         `).join('')}
                     </div>
 
-                    <!-- Código de Rastreio -->
+                    <!-- Código de Rastreio + Link Etiqueta SuperFrete -->
                     <div class="flex gap-2">
-                        <input type="text" id="track-${order.id}" value="${order.codigoRastreio || ''}" placeholder="Código de rastreio (opcional)" class="flex-1 bg-black/50 border border-white/15 rounded-lg px-3 py-2 text-xs focus:border-armyRed focus:outline-none">
-                        <button onclick="saveTrackingCode('${order.id}')" class="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold transition">Salvar Rastreio</button>
+                        <input type="text" id="track-${order.id}" value="${order.codigoRastreio || ''}" placeholder="Código de rastreio" class="flex-1 bg-black/50 border border-white/15 rounded-lg px-3 py-2 text-xs focus:border-armyRed focus:outline-none">
+                        <button onclick="saveTrackingCode('${order.id}')" class="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold transition">Salvar</button>
+                        ${order.etiquetaUrl ? `<a href="${order.etiquetaUrl}" target="_blank" class="px-3 py-2 bg-armyRed hover:bg-armyRedHover rounded-lg text-xs font-bold flex items-center gap-1 transition"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Etiqueta</a>` : ''}
                     </div>
                 </div>
 
@@ -235,7 +244,7 @@ window.saveTrackingCode = async (orderId) => {
     }
 };
 
-// ==================== GESTÃO DE PRODUTOS & PRECIFICAÇÃO ====================
+// ==================== GESTÃO DE PRODUTOS & MEDIDAS ====================
 
 function renderAdminProducts() {
     const grid = document.getElementById('adminProductsGrid');
@@ -253,7 +262,10 @@ function renderAdminProducts() {
                     <span class="absolute top-3 right-3 bg-black/80 text-white text-[11px] font-bold px-2.5 py-1 rounded">Estoque: ${prod.estoque}</span>
                 </div>
                 <div class="p-5">
-                    <span class="text-[10px] uppercase tracking-widest text-gray-400">${prod.categoria}</span>
+                    <div class="flex items-center justify-between text-[10px] uppercase tracking-widest text-gray-400">
+                        <span>${prod.categoria}</span>
+                        <span>${prod.peso || 0.15}kg • ${prod.largura || 12}x${prod.altura || 3}x${prod.comprimento || 16}cm</span>
+                    </div>
                     <h4 class="font-display font-bold text-base mt-1">${prod.nome}</h4>
                     <p class="text-xs text-gray-400 mt-1 line-clamp-2">${prod.descricao}</p>
                 </div>
@@ -293,6 +305,10 @@ window.openProductFormModal = (prodId = null) => {
         document.getElementById('prodStock').value = prod.estoque;
         document.getElementById('prodImage').value = prod.imagem;
         document.getElementById('prodDesc').value = prod.descricao;
+        document.getElementById('prodWeight').value = prod.peso || 0.15;
+        document.getElementById('prodWidth').value = prod.largura || 12;
+        document.getElementById('prodHeight').value = prod.altura || 3;
+        document.getElementById('prodLength').value = prod.comprimento || 16;
         document.getElementById('prodPromoToggle').checked = Boolean(prod.promocao);
         document.getElementById('prodOriginalPrice').value = prod.precoOriginal;
         document.getElementById('prodPromoPrice').value = prod.promocao ? prod.precoPromocional : '';
@@ -306,6 +322,10 @@ window.openProductFormModal = (prodId = null) => {
         document.getElementById('prodStock').value = 10;
         document.getElementById('prodImage').value = "";
         document.getElementById('prodDesc').value = "";
+        document.getElementById('prodWeight').value = 0.15;
+        document.getElementById('prodWidth').value = 12;
+        document.getElementById('prodHeight').value = 3;
+        document.getElementById('prodLength').value = 16;
         document.getElementById('prodPromoToggle').checked = false;
         document.getElementById('prodOriginalPrice').value = "";
         document.getElementById('prodPromoPrice').value = "";
@@ -364,6 +384,10 @@ window.saveProduct = async (e) => {
         estoque: Number(document.getElementById('prodStock').value),
         imagem: document.getElementById('prodImage').value,
         descricao: document.getElementById('prodDesc').value,
+        peso: Number(document.getElementById('prodWeight').value),
+        largura: Number(document.getElementById('prodWidth').value),
+        altura: Number(document.getElementById('prodHeight').value),
+        comprimento: Number(document.getElementById('prodLength').value),
         promocao: isPromo,
         precoOriginal,
         precoPromocional,
