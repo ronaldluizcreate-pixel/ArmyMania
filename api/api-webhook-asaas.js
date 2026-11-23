@@ -8,7 +8,15 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Método não permitido' });
+    }
+
+    // Validação de segurança do Webhook do Asaas
+    const tokenRecebido = req.headers['asaas-access-token'];
+    if (process.env.ASAAS_WEBHOOK_TOKEN && tokenRecebido !== process.env.ASAAS_WEBHOOK_TOKEN) {
+        return res.status(401).json({ error: 'Token de webhook inválido' });
+    }
 
     try {
         const { event, payment } = req.body;
@@ -19,11 +27,15 @@ export default async function handler(req, res) {
         }
 
         const pedidoId = payment?.externalReference;
-        if (!pedidoId) return res.status(200).json({ received: true, warning: 'Sem externalReference' });
+        if (!pedidoId) {
+            return res.status(200).json({ received: true, warning: 'Sem externalReference' });
+        }
 
         const pedidoRef = db.collection('pedidos').doc(pedidoId);
         const pedidoSnap = await pedidoRef.get();
-        if (!pedidoSnap.exists) return res.status(404).json({ error: 'Pedido não encontrado' });
+        if (!pedidoSnap.exists) {
+            return res.status(404).json({ error: 'Pedido não encontrado' });
+        }
 
         const pedido = pedidoSnap.data();
 
